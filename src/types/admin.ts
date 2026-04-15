@@ -1,0 +1,97 @@
+export type DriverStatus = "unassigned" | "assigned" | "completed";
+
+export type Vehicle = {
+  id: string;
+  title: string;
+  name: string;
+  description: string;
+  passengers: number;
+  bags: number;
+  wifi: boolean;
+  meet_greet: boolean;
+  drinks: boolean;
+  waiting_time: string;
+  base_price: number;
+  price_per_hour: number;
+  image_url?: string;
+  created_at?: string;
+  vehicle_status: string;
+  daily_rate: number;
+};
+
+export type Booking = {
+  id: string;
+  user_id: string;
+  booking_ref: string;
+  service_type: string;
+  service_subtype?: string;
+  date_time: string;
+  pickup_location: string;
+  dropoff_location?: string | null;
+  amount: number;
+  status: string;
+  payment_status?: string;
+  stripe_session_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  departure_flight?: string | null;
+  arrival_flight?: string | null;
+  passengers?: number;
+  luggage?: number | null;
+  additional_requests?: string | null;
+  selected_vehicle?: string | null;
+  is_hire_by_hour?: boolean | null;
+  duration?: number | null;
+  duration_unit?: string | null;
+  driver_id?: string | null;
+  driver_status?: string | null;
+  terminal?: string | null;
+  additional_hours?: number | null;
+  want_buggy?: boolean;
+  want_porter?: boolean;
+};
+
+export type Driver = {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  payment_details: string;
+  status: string;
+};
+
+export type DriverPayment = {
+  id: string;
+  created_at: string;
+  driver_id: string;
+  booking_id: string;
+  amount: number;
+  status: string;
+  payment_date: string | null;
+  payment_method: string;
+};
+
+export interface Location {
+  id: number;
+  name: string;
+  status: "active" | "inactive";
+  isAirport: boolean;
+  terminals?: string[];
+}
+
+export interface ServicePricing {
+  id: string;
+  baseRate: number;
+  description: string;
+}
+
+
+export interface ExtraCharge {
+  id: string;
+  amount: number;
+  description: string;
+}
+
