@@ -8,9 +8,9 @@ import { Vehicle } from "@/types/admin";
 import { Label } from "../ui/label";
 import Image from "next/image";
 import Notification from "@/components/ui/notification";
-import { db, storage } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { db, storage } from "@/lib/supabase";
+import { collection, addDoc, updateDoc, deleteDoc, doc } from "@/lib/supabase-db";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "@/lib/supabase-storage";
 
 type VehicleFormData = {
   title: string;

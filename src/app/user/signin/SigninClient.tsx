@@ -7,8 +7,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Label } from "@radix-ui/react-label";
 import { Icons } from "@/components/ui/icons";
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "@/lib/supabase-auth";
+import { auth } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
@@ -47,7 +47,7 @@ export default function SigninClient({
         router.push('/user/dashboard');
       }
     } catch (error: any) {
-      // Handle specific Firebase auth errors
+      // Handle specific auth errors
       switch (error.code) {
         case 'auth/invalid-email':
           setError("Invalid email address");
@@ -121,7 +121,7 @@ export default function SigninClient({
         setResetEmail("");
       }, 3000);
     } catch (err: any) {
-      // Handle specific Firebase auth errors
+      // Handle specific auth errors
       switch (err.code) {
         case 'auth/invalid-email':
           setResetStatus("Invalid email address");

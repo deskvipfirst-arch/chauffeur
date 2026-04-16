@@ -3,7 +3,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { getLocations } from "@/lib/firebase-admin";
+import { getLocations } from "@/lib/supabase";
 import type { Location } from "@/lib/types";
 import {
   Dialog,
@@ -15,9 +15,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "@/lib/supabase-auth";
+import { auth, db } from "@/lib/supabase";
+import { doc, getDoc } from "@/lib/supabase-db";
 import { Icons } from "@/components/ui/icons";
 
 type BookingDetails = {

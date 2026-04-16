@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { DriverPayment, Driver } from "@/types/admin";
 import { Label } from "../ui/label";
 import Notification from "@/components/ui/notification";
-import { db } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/supabase";
+import { collection, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "@/lib/supabase-db";
 
 type DriverPaymentsTabProps = {
   driverPayments: DriverPayment[];

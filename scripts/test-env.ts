@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-console.log('Project ID:', process.env.FIREBASE_PROJECT_ID);
-console.log('Client Email:', process.env.FIREBASE_CLIENT_EMAIL);
-console.log('Private Key Length:', process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.length : 'not set'); 
+console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL || 'not set');
+console.log('Anon Key Present:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'yes' : 'not set');
+console.log('Service Role Key Present:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'yes' : 'not set'); 

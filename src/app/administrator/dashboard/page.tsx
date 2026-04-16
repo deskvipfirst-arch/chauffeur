@@ -25,8 +25,8 @@ import {
 } from "@/components/ui/sidebar";
 import { ChevronLeft, ChevronRight, Car, Calendar, DollarSign, FileText, Settings, User, LogOut, Shield, Key } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/supabase";
+import { onAuthStateChanged } from "@/lib/supabase-auth";
 import { useRouter } from "next/navigation";
 import { isAdminUser } from "@/lib/adminUtils";
 import {

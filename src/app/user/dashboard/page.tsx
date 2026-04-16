@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
 import { Booking } from "@/types/admin";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@/lib/supabase";
 import {
   collection,
   query,
@@ -13,7 +13,7 @@ import {
   getDocs,
   doc,
   updateDoc,
-} from "firebase/firestore";
+} from "@/lib/supabase-db";
 import { format, isAfter, subHours } from "date-fns";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged } from "@/lib/supabase-auth";
 
 
 // Format service type for display

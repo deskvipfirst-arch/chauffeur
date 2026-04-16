@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLocations } from "@/lib/firebase-admin";
+import { getLocations } from "@/lib/supabase-admin";
 
 export async function GET() {
   try {

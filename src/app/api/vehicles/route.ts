@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getVehicles } from "@/lib/firebase-admin";
+import { getVehicles } from "@/lib/supabase-admin";
 
 export async function GET() {
   try {

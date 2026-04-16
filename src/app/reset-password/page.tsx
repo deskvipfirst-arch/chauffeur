@@ -5,8 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/firebase";
-import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
+import { auth } from "@/lib/supabase";
+import { verifyPasswordResetCode, confirmPasswordReset } from "@/lib/supabase-auth";
 import Link from "next/link";
 
 function ResetPasswordPageContent() {

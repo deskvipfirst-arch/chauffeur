@@ -1,7 +1,6 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { adminDb } from "@/lib/supabase-admin";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -103,7 +102,7 @@ ${bookingDetails.flightNumberDeparture ? `Departure Flight: ${bookingDetails.fli
         },
       });
 
-      // Save booking to Firebase
+      // Save booking to Supabase
       const bookingRef = generateBookingRef();
       const bookingData = {
         full_name: bookingDetails.fullName,
@@ -134,8 +133,7 @@ ${bookingDetails.flightNumberDeparture ? `Departure Flight: ${bookingDetails.fli
         booking_ref: bookingRef,
       };
 
-      const bookingsRef = collection(db, "bookings");
-      await addDoc(bookingsRef, bookingData);
+      await adminDb.collection("bookings").add(bookingData);
 
       return NextResponse.json({ url: session.url });
     } catch (err) {

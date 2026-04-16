@@ -15,8 +15,6 @@ import PriceModal from "./components/PriceModal";
 import { AlertCircle } from "lucide-react";
 import type { Location, Vehicle } from "@/lib/types";
 import { useRouter, useSearchParams } from "next/navigation";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import VehicleSelection from "./components/VehicleSelection";
 
 export interface BookingData {
@@ -78,44 +76,42 @@ export function PriceEstimator() {
   const [showVehicleSelection, setShowVehicleSelection] = useState(false);
 
   useEffect(() => {
+    const fetchJson = async <T,>(url: string, fallback: T): Promise<T> => {
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) return fallback;
+        return (await response.json()) as T;
+      } catch {
+        return fallback;
+      }
+    };
+
     const fetchData = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        // Fetch locations, vehicles, and service rates in parallel
-        const [locationsResponse, vehiclesSnap, serviceRatesSnap, extraChargesSnap] = await Promise.all([
-          fetch('/api/locations').then(res => res.json()),
-          getDocs(collection(db, "vehicles")),
-          getDocs(collection(db, "service_rates")),
-          getDocs(collection(db, "extra_charges")),
+        const [locationsResponse, vehiclesResponse, serviceRatesResponse, extraChargesResponse] = await Promise.all([
+          fetchJson<Location[]>("/api/locations", []),
+          fetchJson<Vehicle[]>("/api/vehicles", []),
+          fetchJson<Array<{ id: string; baseRate?: number; description?: string }>>("/api/service-rates", []),
+          fetchJson<Array<{ id: string; amount?: number; description?: string }>>("/api/extra-charges", []),
         ]);
-        setLocations(locationsResponse);
-        
-        // Map vehicles from Firebase
-        const vehiclesData: Vehicle[] = [];
-        vehiclesSnap.forEach(doc => {
-          vehiclesData.push({
-            id: doc.id,
-            ...doc.data()
-          } as Vehicle);
-        });
-        setVehicles(vehiclesData);
-        
-        // Map service rates by id
+
+        setLocations(Array.isArray(locationsResponse) ? locationsResponse : []);
+        setVehicles(Array.isArray(vehiclesResponse) ? vehiclesResponse : []);
+
         const rates: Record<string, any> = {};
-        serviceRatesSnap.forEach(doc => {
-          rates[doc.id] = doc.data();
-        });
+        for (const rate of serviceRatesResponse) {
+          rates[rate.id] = rate;
+        }
         setServiceRates(rates);
 
-        // Map extra charges by id
         const charges: Record<string, any> = {};
-        extraChargesSnap.forEach(doc => {
-          charges[doc.id] = doc.data();
-        });
+        for (const charge of extraChargesResponse) {
+          charges[charge.id] = charge;
+        }
         setExtraCharges(charges);
-      } catch (err) {
-        console.error("Error fetching data:", err);
+      } catch {
         setError("Failed to load data. Please try again later.");
       } finally {
         setIsLoading(false);
@@ -123,6 +119,7 @@ export function PriceEstimator() {
         setIsVehiclesLoading(false);
       }
     };
+
     fetchData();
   }, []);
 

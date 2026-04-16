@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLocations, updateLocation, deleteLocation } from "@/lib/firebase-admin";
+import { getLocations, updateLocation, deleteLocation } from "@/lib/supabase-admin";
 
 // Helper function to extract the id from the URL
 const getIdFromUrl = (url: string): string | null => {

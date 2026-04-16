@@ -1,10 +1,10 @@
-import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/supabase";
+import { createUserWithEmailAndPassword } from "@/lib/supabase-auth";
+import { doc, setDoc, getDoc } from "@/lib/supabase-db";
 
 export async function createAdminUser(email: string, password: string) {
   try {
-    // Create the user in Firebase Auth
+    // Create the user in Supabase Auth
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
@@ -36,7 +36,7 @@ export async function isAdminUser(userId: string) {
 // Function to create the first admin user
 export async function createFirstAdminUser(email: string, password: string) {
   try {
-    // Create the user in Firebase Auth
+    // Create the user in Supabase Auth
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 

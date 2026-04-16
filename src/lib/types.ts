@@ -15,6 +15,13 @@ export interface ServiceRate {
   description?: string;
 }
 
+export interface ExtraCharge {
+  id: string;
+  type?: string;
+  amount: number;
+  description?: string;
+}
+
 export interface Vehicle {
   id: string;
   name: string;
@@ -61,6 +68,7 @@ export interface UserData {
 export const COLLECTIONS = {
   LOCATIONS: 'locations',
   SERVICE_RATES: 'service_rates',
+  EXTRA_CHARGES: 'extra_charges',
   VEHICLES: 'vehicles',
   BOOKINGS: 'bookings',
   USERS: 'users',

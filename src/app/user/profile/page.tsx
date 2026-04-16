@@ -1,14 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db, getCurrentUser } from "@/lib/supabase";
+import { doc, getDoc, updateDoc } from "@/lib/supabase-db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icons } from "@/components/ui/icons";
-import { updateProfile } from "firebase/auth";
+import { updateProfile } from "@/lib/supabase-auth";
 
 interface UserProfile {
   email: string | null;
@@ -38,7 +38,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const fetchUserData = async () => {
-      const user = auth.currentUser;
+      const user = await getCurrentUser();
       if (!user) {
         router.push("/user/signin");
         return;
@@ -71,7 +71,7 @@ export default function ProfilePage() {
     setError(null);
     setSuccess(null);
 
-    const user = auth.currentUser;
+    const user = await getCurrentUser();
     if (!user) {
       router.push("/user/signin");
       return;
@@ -85,7 +85,7 @@ export default function ProfilePage() {
         phone: formData.phone,
       });
 
-      // Update display name in Firebase Auth
+      // Update display name in Supabase Auth
       await updateProfile(user, {
         displayName: `${formData.firstName} ${formData.lastName}`,
       });

@@ -12,9 +12,9 @@ import {
 import Link from "next/link";
 import { Button } from "./button";
 import { useState, useEffect, useRef } from "react";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/supabase";
+import { onAuthStateChanged, signOut } from "@/lib/supabase-auth";
+import { doc, getDoc } from "@/lib/supabase-db";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";

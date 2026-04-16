@@ -6,9 +6,9 @@ import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword, updateProfile } from "@/lib/supabase-auth";
+import { auth, db } from "@/lib/supabase";
+import { doc, setDoc } from "@/lib/supabase-db";
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
@@ -35,7 +35,7 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      // Create user in Firebase Auth
+      // Create user in Supabase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,

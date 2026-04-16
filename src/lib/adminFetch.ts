@@ -1,5 +1,5 @@
-import { db } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/supabase";
+import { collection, getDocs, query, orderBy } from "@/lib/supabase-db";
 import { Vehicle, Booking, Driver, DriverPayment, Location, ServicePricing, ExtraCharge } from "@/types/admin";
 
 type FetchResult<T> = {
@@ -155,37 +155,51 @@ export const fetchLocations = async (): Promise<FetchResult<Location>> => {
 export const fetchServicePricing = async (): Promise<FetchResult<ServicePricing>> => {
   let isLoading = true;
   try {
-    const serviceRatesRef = collection(db, "service_rates");
-    const snapshot = await getDocs(serviceRatesRef);
-    const data = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      baseRate: doc.data().baseRate,
-      description: doc.data().description,
-    }));
+    const response = await fetch("/api/service-rates", { cache: "no-store" });
+    if (!response.ok) {
+      isLoading = false;
+      return { data: [], error: null, isLoading };
+    }
+
+    const payload = await response.json();
+    const data = Array.isArray(payload)
+      ? payload.map((item) => ({
+          id: item.id,
+          baseRate: item.baseRate ?? 0,
+          description: item.description ?? "",
+        }))
+      : [];
+
     isLoading = false;
     return { data, error: null, isLoading };
-  } catch (err: unknown) {
-    console.error("Error fetching service rates:", err);
+  } catch {
     isLoading = false;
-    return { data: null, error: err instanceof Error ? err.message : "Failed to load service rates", isLoading };
+    return { data: [], error: null, isLoading };
   }
 };
 
 export const fetchExtraCharges = async (): Promise<FetchResult<ExtraCharge>> => {
   let isLoading = true;
   try {
-    const extraChargesRef = collection(db, "extra_charges");
-    const snapshot = await getDocs(extraChargesRef);
-    const data = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      amount: doc.data().amount,
-      description: doc.data().description,
-    }));
+    const response = await fetch("/api/extra-charges", { cache: "no-store" });
+    if (!response.ok) {
+      isLoading = false;
+      return { data: [], error: null, isLoading };
+    }
+
+    const payload = await response.json();
+    const data = Array.isArray(payload)
+      ? payload.map((item) => ({
+          id: item.id,
+          amount: item.amount ?? 0,
+          description: item.description ?? "",
+        }))
+      : [];
+
     isLoading = false;
     return { data, error: null, isLoading };
-  } catch (err: unknown) {
-    console.error("Error fetching extra charges:", err);
+  } catch {
     isLoading = false;
-    return { data: null, error: err instanceof Error ? err.message : "Failed to load extra charges", isLoading };
+    return { data: [], error: null, isLoading };
   }
 };

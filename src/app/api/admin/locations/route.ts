@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { adminDb } from '@/lib/supabase-admin';
 
 export async function POST(request: Request) {
   try {
@@ -14,10 +13,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create the document with the provided name or generated name
-    const locationRef = doc(db, 'locations', docName);
-    
-    await setDoc(locationRef, {
+    await adminDb.collection('locations').doc(docName).set({
       name,
       status,
       isAirport,

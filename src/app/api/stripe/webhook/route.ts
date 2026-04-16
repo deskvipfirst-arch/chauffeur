@@ -2,8 +2,7 @@ export const runtime = 'nodejs';
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
+import { adminDb } from "@/lib/supabase-admin";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -34,9 +33,10 @@ export async function POST(req: Request) {
       }
 
       // Query for the booking with this session ID
-      const bookingsRef = collection(db, "bookings");
-      const q = query(bookingsRef, where("stripe_session_id", "==", session.id));
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await adminDb
+        .collection("bookings")
+        .where("stripe_session_id", "==", session.id)
+        .get();
 
       if (querySnapshot.empty) {
         return NextResponse.json(
@@ -47,9 +47,8 @@ export async function POST(req: Request) {
 
       // Update the booking status
       const bookingDoc = querySnapshot.docs[0];
-      const bookingRef = doc(db, "bookings", bookingDoc.id);
-      
-      await updateDoc(bookingRef, {
+
+      await adminDb.collection("bookings").doc(bookingDoc.id).update({
         status: "confirmed",
         payment_status: "Paid",
         updated_at: new Date()

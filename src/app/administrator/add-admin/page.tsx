@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/supabase";
+import { onAuthStateChanged } from "@/lib/supabase-auth";
 
 import { createAdminUser } from "@/lib/adminUtils";
 import { Button } from "@/components/ui/button";
