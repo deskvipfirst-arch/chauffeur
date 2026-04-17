@@ -1,4 +1,4 @@
-export type DriverStatus = "unassigned" | "assigned" | "completed";
+export type DriverStatus = "unassigned" | "assigned" | "accepted" | "picked_up" | "completed";
 
 export type Vehicle = {
   id: string;
@@ -39,15 +39,23 @@ export type Booking = {
   phone?: string;
   departure_flight?: string | null;
   arrival_flight?: string | null;
+  flight_number_arrival?: string | null;
+  flight_number_departure?: string | null;
   passengers?: number;
   luggage?: number | null;
+  bags?: number | null;
   additional_requests?: string | null;
   selected_vehicle?: string | null;
   is_hire_by_hour?: boolean | null;
   duration?: number | null;
   duration_unit?: string | null;
   driver_id?: string | null;
-  driver_status?: string | null;
+  driver_status?: DriverStatus | null;
+  dispatch_notes?: string | null;
+  assigned_at?: string | null;
+  accepted_at?: string | null;
+  picked_up_at?: string | null;
+  completed_at?: string | null;
   terminal?: string | null;
   additional_hours?: number | null;
   want_buggy?: boolean;

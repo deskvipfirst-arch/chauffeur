@@ -72,4 +72,6 @@ export const COLLECTIONS = {
   VEHICLES: 'vehicles',
   BOOKINGS: 'bookings',
   USERS: 'users',
+  DRIVERS: 'drivers',
+  DRIVER_PAYMENTS: 'driverPayments',
 } as const; 

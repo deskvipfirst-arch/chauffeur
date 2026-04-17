@@ -256,14 +256,34 @@ export default function BookingDetails({
             <span className="font-semibold">Driver Status:</span>{" "}
             {booking.driver_status || "N/A"}
           </p>
-          {!isEditing && booking.driver_status === "assigned" && (
+          {booking.assigned_at && (
+            <p className="text-sm text-gray-600 mb-2">
+              <span className="font-semibold">Assigned At:</span> {new Date(booking.assigned_at).toLocaleString()}
+            </p>
+          )}
+          {booking.accepted_at && (
+            <p className="text-sm text-gray-600 mb-2">
+              <span className="font-semibold">Accepted At:</span> {new Date(booking.accepted_at).toLocaleString()}
+            </p>
+          )}
+          {booking.picked_up_at && (
+            <p className="text-sm text-gray-600 mb-2">
+              <span className="font-semibold">Picked Up At:</span> {new Date(booking.picked_up_at).toLocaleString()}
+            </p>
+          )}
+          {booking.completed_at && (
+            <p className="text-sm text-gray-600 mb-2">
+              <span className="font-semibold">Completed At:</span> {new Date(booking.completed_at).toLocaleString()}
+            </p>
+          )}
+          {!isEditing && booking.driver_id && booking.driver_status !== "completed" && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleMarkBookingCompleted(booking.id)}
               className="mt-2 bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
             >
-              Mark Confirmed
+              Mark Completed
             </Button>
           )}
         </div>

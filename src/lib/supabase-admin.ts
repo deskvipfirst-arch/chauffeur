@@ -214,6 +214,63 @@ export async function getVehicles(): Promise<Vehicle[]> {
   return (data || []).map((row: any) => ({ id: String(row.id), ...row })) as Vehicle[];
 }
 
+export async function getBookings() {
+  const { data, error } = await supabaseAdmin
+    .from(COLLECTIONS.BOOKINGS)
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function updateBooking(id: string, data: Record<string, any>) {
+  const { data: updated, error } = await supabaseAdmin
+    .from(COLLECTIONS.BOOKINGS)
+    .update({ ...data, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return updated;
+}
+
+export async function getDrivers() {
+  const { data, error } = await supabaseAdmin
+    .from(COLLECTIONS.DRIVERS)
+    .select("*")
+    .order("firstName", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getDriverByEmail(email: string) {
+  const { data, error } = await supabaseAdmin
+    .from(COLLECTIONS.DRIVERS)
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getBookingsForDriverEmail(email: string) {
+  const driver = await getDriverByEmail(email);
+  if (!driver) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from(COLLECTIONS.BOOKINGS)
+    .select("*")
+    .eq("driver_id", driver.id)
+    .order("date_time", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
 export async function createBooking(bookingData: BookingData) {
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.BOOKINGS)

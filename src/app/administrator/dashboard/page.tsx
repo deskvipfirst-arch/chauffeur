@@ -5,6 +5,7 @@ import VehiclesTab from "@/components/admin/VehiclesTab";
 import DriverPaymentsTab from "@/components/admin/DriverPaymentsTab";
 import InvoicesTab from "@/components/admin/InvoicesTab";
 import PriceSettingsTab from "@/components/admin/PriceSettingsTab";
+import BookingRow from "@/components/admin/BookingRow";
 import {
   fetchVehicles,
   fetchBookings,
@@ -137,6 +138,100 @@ export default function AdminDashboard() {
       unsubscribe();
     };
   }, []);
+
+  const updateBookingInState = (bookingId: string, updates: Partial<Booking>) => {
+    setBookings((current) =>
+      current.map((booking) =>
+        booking.id === bookingId ? { ...booking, ...updates } : booking
+      )
+    );
+  };
+
+  const handleUpdateBookingStatus = async (bookingId: string, newStatus: string) => {
+    const response = await fetch(`/api/admin/bookings/${bookingId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      toast.error(result.error || "Failed to update booking status");
+      return;
+    }
+
+    updateBookingInState(bookingId, result);
+    toast.success("Booking status updated");
+  };
+
+  const handleAssignDriver = async (bookingId: string, value: string) => {
+    const isUnassign = value === "unassign";
+    const response = await fetch(`/api/admin/bookings/${bookingId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        isUnassign
+          ? {
+              driver_id: null,
+              driver_status: "unassigned",
+              assigned_at: null,
+            }
+          : {
+              driver_id: value,
+              driver_status: "assigned",
+              status: "assigned",
+              assigned_at: new Date().toISOString(),
+            }
+      ),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      toast.error(result.error || "Failed to assign greeter");
+      return;
+    }
+
+    updateBookingInState(bookingId, result);
+    toast.success(isUnassign ? "Greeter unassigned" : "Greeter assigned");
+  };
+
+  const handleMarkBookingCompleted = async (bookingId: string) => {
+    const response = await fetch(`/api/admin/bookings/${bookingId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: "completed",
+        driver_status: "completed",
+        completed_at: new Date().toISOString(),
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      toast.error(result.error || "Failed to complete booking");
+      return;
+    }
+
+    updateBookingInState(bookingId, result);
+    toast.success("Booking marked as completed");
+  };
+
+  const handleDeleteBooking = async (bookingId: string) => {
+    const response = await fetch(`/api/admin/bookings/${bookingId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "deleted" }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      toast.error(result.error || "Failed to delete booking");
+      return;
+    }
+
+    setBookings((current) => current.filter((booking) => booking.id !== bookingId));
+    toast.success("Booking removed from the active list");
+  };
 
   const handleLogout = async () => {
     try {
@@ -306,34 +401,81 @@ export default function AdminDashboard() {
 
           <div className="p-6 w-full">
             {activeTab === "bookings" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-sm font-medium text-gray-500">Total Bookings</h3>
-                  <p className="text-2xl font-bold text-gray-900">{totalBookings}</p>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-sm font-medium text-gray-500">Total Bookings</h3>
+                    <p className="text-2xl font-bold text-gray-900">{totalBookings}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-sm font-medium text-gray-500">Website Visitors</h3>
+                    <p className="text-2xl font-bold text-gray-900">{websiteVisitors}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-sm font-medium text-gray-500">Meet & Greet Bookings</h3>
+                    <p className="text-2xl font-bold text-gray-900">{meetAndGreetBookings}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-sm font-medium text-gray-500">Airport Transfer Bookings</h3>
+                    <p className="text-2xl font-bold text-gray-900">{airportTransferBookings}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-sm font-medium text-gray-500">Hire By Hour Bookings</h3>
+                    <p className="text-2xl font-bold text-gray-900">{hourlyHireBookings}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-sm font-medium text-gray-500">Total Revenue (£)</h3>
+                    <p className="text-2xl font-bold text-gray-900">{totalRevenue.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-sm font-medium text-gray-500">Active Drivers</h3>
+                    <p className="text-2xl font-bold text-gray-900">{activeDrivers}</p>
+                  </div>
                 </div>
-                <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-sm font-medium text-gray-500">Website Visitors</h3>
-                  <p className="text-2xl font-bold text-gray-900">{websiteVisitors}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-sm font-medium text-gray-500">Meet & Greet Bookings</h3>
-                  <p className="text-2xl font-bold text-gray-900">{meetAndGreetBookings}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-sm font-medium text-gray-500">Airport Transfer Bookings</h3>
-                  <p className="text-2xl font-bold text-gray-900">{airportTransferBookings}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-sm font-medium text-gray-500">Hire By Hour Bookings</h3>
-                  <p className="text-2xl font-bold text-gray-900">{hourlyHireBookings}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-sm font-medium text-gray-500">Total Revenue (£)</h3>
-                  <p className="text-2xl font-bold text-gray-900">{totalRevenue.toFixed(2)}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-sm font-medium text-gray-500">Active Drivers</h3>
-                  <p className="text-2xl font-bold text-gray-900">{activeDrivers}</p>
+
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-4 border-b">
+                    <h3 className="text-lg font-semibold text-gray-900">Dispatch Board</h3>
+                    <p className="text-sm text-gray-500">Assign greeters and track each booking through the service lifecycle.</p>
+                  </div>
+
+                  {isLoadingBookings ? (
+                    <div className="p-4 text-sm text-gray-500">Loading bookings...</div>
+                  ) : bookingError ? (
+                    <div className="p-4 text-sm text-red-500">{bookingError}</div>
+                  ) : bookings.length === 0 ? (
+                    <div className="p-4 text-sm text-gray-500">No bookings available yet.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 text-left text-gray-600">
+                          <tr>
+                            <th className="p-4">Booking Ref</th>
+                            <th className="p-4">Created</th>
+                            <th className="p-4">Passenger</th>
+                            <th className="p-4">Pickup</th>
+                            <th className="p-4">Amount</th>
+                            <th className="p-4">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bookings
+                            .filter((booking) => booking.status !== "deleted")
+                            .map((booking) => (
+                              <BookingRow
+                                key={booking.id}
+                                booking={booking}
+                                drivers={drivers}
+                                handleUpdateBookingStatus={handleUpdateBookingStatus}
+                                handleAssignDriver={handleAssignDriver}
+                                handleMarkBookingCompleted={handleMarkBookingCompleted}
+                                handleDeleteBooking={handleDeleteBooking}
+                              />
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

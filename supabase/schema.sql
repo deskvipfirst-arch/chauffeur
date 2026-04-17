@@ -93,6 +93,13 @@ create table if not exists public.bookings (
   status text default 'pending',
   payment_status text default 'pending',
   stripe_session_id text,
+  driver_id uuid,
+  driver_status text default 'unassigned',
+  dispatch_notes text,
+  assigned_at timestamptz,
+  accepted_at timestamptz,
+  picked_up_at timestamptz,
+  completed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -105,6 +112,13 @@ alter table public.bookings add column if not exists flight_number_arrival text;
 alter table public.bookings add column if not exists flight_number_departure text;
 alter table public.bookings add column if not exists booking_ref text;
 alter table public.bookings add column if not exists stripe_session_id text;
+alter table public.bookings add column if not exists driver_id uuid;
+alter table public.bookings add column if not exists driver_status text default 'unassigned';
+alter table public.bookings add column if not exists dispatch_notes text;
+alter table public.bookings add column if not exists assigned_at timestamptz;
+alter table public.bookings add column if not exists accepted_at timestamptz;
+alter table public.bookings add column if not exists picked_up_at timestamptz;
+alter table public.bookings add column if not exists completed_at timestamptz;
 
 create table if not exists public.drivers (
   id uuid primary key default gen_random_uuid(),
@@ -126,6 +140,12 @@ create table if not exists public.driverPayments (
   paymentMethod text default 'bank_transfer',
   createdAt timestamptz default now()
 );
+
+do $$ begin
+  alter table public.bookings
+    add constraint bookings_driver_id_fkey
+    foreign key (driver_id) references public.drivers(id) on delete set null;
+exception when duplicate_object then null; end $$;
 
 alter table public.users enable row level security;
 alter table public.profiles enable row level security;

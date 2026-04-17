@@ -49,26 +49,52 @@ export const fetchVehicles = async (): Promise<FetchResult<Vehicle>> => {
 export const fetchBookings = async (): Promise<FetchResult<Booking>> => {
   let isLoading = true;
   try {
-    const bookingsRef = collection(db, "bookings");
-    const q = query(bookingsRef, orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    
-    const data = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      user_id: doc.data().user_id,
-      booking_ref: doc.data().booking_ref,
-      service_type: doc.data().service_type,
-      date_time: doc.data().date_time,
-      pickup_location: doc.data().pickup_location,
-      dropoff_location: doc.data().dropoff_location,
-      amount: doc.data().amount || 0,
-      status: doc.data().status || "pending",
-      payment_status: doc.data().payment_status,
-      stripe_session_id: doc.data().stripe_session_id,
-      created_at: doc.data().created_at,
-      updated_at: doc.data().updated_at || doc.data().created_at
-    })) as Booking[];
-    
+    const response = await fetch("/api/admin/bookings", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("Failed to load bookings");
+    }
+
+    const payload = await response.json();
+    const data = Array.isArray(payload)
+      ? payload.map((item) => ({
+          id: item.id,
+          user_id: item.user_id,
+          booking_ref: item.booking_ref || "",
+          service_type: item.service_type || "",
+          service_subtype: item.service_subtype || undefined,
+          date_time: item.date_time,
+          pickup_location: item.pickup_location || "",
+          dropoff_location: item.dropoff_location || null,
+          amount: Number(item.amount || 0),
+          status: item.status || "pending",
+          payment_status: item.payment_status || "pending",
+          stripe_session_id: item.stripe_session_id || null,
+          created_at: item.created_at,
+          updated_at: item.updated_at || item.created_at,
+          full_name: item.full_name || "",
+          email: item.email || "",
+          phone: item.phone || "",
+          departure_flight: item.flight_number_departure || item.departure_flight || null,
+          arrival_flight: item.flight_number_arrival || item.arrival_flight || null,
+          passengers: item.passengers || 1,
+          luggage: item.bags ?? item.luggage ?? 0,
+          bags: item.bags ?? item.luggage ?? 0,
+          additional_requests: item.additional_requests || null,
+          selected_vehicle: item.selected_vehicle || null,
+          duration: item.duration || null,
+          duration_unit: item.duration_unit || null,
+          driver_id: item.driver_id || null,
+          driver_status: item.driver_status || "unassigned",
+          dispatch_notes: item.dispatch_notes || null,
+          assigned_at: item.assigned_at || null,
+          accepted_at: item.accepted_at || null,
+          picked_up_at: item.picked_up_at || null,
+          completed_at: item.completed_at || null,
+          want_buggy: Boolean(item.want_buggy),
+          want_porter: Boolean(item.want_porter),
+        }))
+      : [];
+
     isLoading = false;
     return { data, error: null, isLoading };
   } catch (err: unknown) {
@@ -81,19 +107,23 @@ export const fetchBookings = async (): Promise<FetchResult<Booking>> => {
 export const fetchDrivers = async (): Promise<FetchResult<Driver>> => {
   let isLoading = true;
   try {
-    const driversRef = collection(db, "drivers");
-    const snapshot = await getDocs(driversRef);
-    const data = snapshot.docs.map(doc => {
-      const driver = doc.data();
-      return {
-        id: doc.id,
-        full_name: `${driver.firstName || ""} ${driver.lastName || ""}`.trim(),
-        email: driver.email || "",
-        phone: driver.phone || "",
-        payment_details: driver.paymentDetails || "",
-        status: driver.status || "inactive",
-      };
-    });
+    const response = await fetch("/api/admin/drivers", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("Failed to load drivers");
+    }
+
+    const payload = await response.json();
+    const data = Array.isArray(payload)
+      ? payload.map((driver) => ({
+          id: driver.id,
+          full_name: `${driver.firstName || ""} ${driver.lastName || ""}`.trim(),
+          email: driver.email || "",
+          phone: driver.phone || "",
+          payment_details: driver.paymentDetails || "",
+          status: driver.status || "inactive",
+        }))
+      : [];
+
     isLoading = false;
     return { data, error: null, isLoading };
   } catch (err: unknown) {
