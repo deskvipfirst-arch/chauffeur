@@ -9,23 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, LogOut } from "lucide-react";
 
-const statusLabel: Record<string, string> = {
-  assigned: "Assigned",
-  accepted: "Accepted",
-  picked_up: "Picked Up",
-  completed: "Completed",
-  confirmed: "Confirmed",
-  pending: "Pending",
-};
-
-const actionConfig: Record<string, { label: string; action: string } | null> = {
-  assigned: { label: "Accept Job", action: "accept" },
-  accepted: { label: "Confirm Pickup", action: "pickup" },
-  picked_up: { label: "Complete Job", action: "complete" },
-  completed: null,
-  confirmed: null,
-  pending: null,
-};
+import { getGreeterActionConfig, getGreeterStatusLabel } from "@/lib/greeterUi";
+import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
 
 export default function GreeterDashboardPage() {
   const router = useRouter();
@@ -67,6 +52,24 @@ export default function GreeterDashboardPage() {
 
     return () => unsubscribe();
   }, [loadJobs, router]);
+
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const stopPolling = createPollingInterval(() => loadJobs(user.email), 10000);
+    const onVisibilityChange = () => {
+      if (shouldRefreshOnVisibility(document.visibilityState)) {
+        void loadJobs(user.email);
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [loadJobs, user?.email]);
 
   const handleJobAction = async (jobId: string, action: string) => {
     if (!user?.email) return;
@@ -122,7 +125,7 @@ export default function GreeterDashboardPage() {
           <div className="grid gap-4">
             {jobs.map((job) => {
               const currentStatus = job.driver_status || job.status || "assigned";
-              const nextAction = actionConfig[currentStatus] ?? null;
+              const nextAction = getGreeterActionConfig(currentStatus);
 
               return (
                 <Card key={job.id}>
@@ -131,7 +134,7 @@ export default function GreeterDashboardPage() {
                       <CardTitle className="text-lg">{job.booking_ref || "Unreferenced Job"}</CardTitle>
                       <p className="text-sm text-slate-600">{job.full_name || "Guest passenger"}</p>
                     </div>
-                    <Badge>{statusLabel[currentStatus] || currentStatus}</Badge>
+                    <Badge>{getGreeterStatusLabel(currentStatus)}</Badge>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-slate-700">
                     <p><span className="font-semibold">Service:</span> {job.service_type}</p>

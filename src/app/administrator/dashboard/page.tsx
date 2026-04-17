@@ -41,13 +41,15 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
+import { filterHeathrowBookings, getMonitoringPriority } from "@/lib/heathrowMonitoring";
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    "vehicles" | "bookings" | "payments" | "invoices" | "priceSettings"
+    "vehicles" | "bookings" | "payments" | "invoices" | "priceSettings" | "heathrow"
   >("bookings");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userEmail, setUserEmail] = useState<string>("");
@@ -70,6 +72,29 @@ export default function AdminDashboard() {
   const [driverPayments, setDriverPayments] = useState<DriverPayment[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(true);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  const refreshDashboardData = async () => {
+    await Promise.all([
+      fetchVehicles().then(({ data, error, isLoading }) => {
+        setVehicles(data || []);
+        setVehicleError(error);
+        setIsLoadingVehicles(isLoading);
+      }),
+      fetchBookings().then(({ data, error, isLoading }) => {
+        setBookings(data || []);
+        setBookingError(error);
+        setIsLoadingBookings(isLoading);
+      }),
+      fetchDrivers().then(({ data }) => {
+        setDrivers(data || []);
+      }),
+      fetchDriverPayments().then(({ data, error, isLoading }) => {
+        setDriverPayments(data || []);
+        setPaymentError(error);
+        setIsLoadingPayments(isLoading);
+      }),
+    ]);
+  };
 
   useEffect(() => {
     console.log("Setting up auth state listener...");
@@ -100,28 +125,8 @@ export default function AdminDashboard() {
         setIsLoading(false);
         setUserEmail(user.email || "");
 
-        // Fetch all data
         console.log("Fetching dashboard data...");
-        Promise.all([
-          fetchVehicles().then(({ data, error, isLoading }) => {
-            setVehicles(data || []);
-            setVehicleError(error);
-            setIsLoadingVehicles(isLoading);
-          }),
-          fetchBookings().then(({ data, error, isLoading }) => {
-            setBookings(data || []);
-            setBookingError(error);
-            setIsLoadingBookings(isLoading);
-          }),
-          fetchDrivers().then(({ data }) => {
-            setDrivers(data || []);
-          }),
-          fetchDriverPayments().then(({ data, error, isLoading }) => {
-            setDriverPayments(data || []);
-            setPaymentError(error);
-            setIsLoadingPayments(isLoading);
-          }),
-        ]).then(() => {
+        refreshDashboardData().then(() => {
           console.log("Dashboard data fetched successfully");
         }).catch((error) => {
           console.error("Error fetching dashboard data:", error);
@@ -233,6 +238,24 @@ export default function AdminDashboard() {
     toast.success("Booking removed from the active list");
   };
 
+  useEffect(() => {
+    if (!isAuthenticated || !isAdmin) return;
+
+    const stopPolling = createPollingInterval(() => refreshDashboardData(), 15000);
+    const onVisibilityChange = () => {
+      if (shouldRefreshOnVisibility(document.visibilityState)) {
+        void refreshDashboardData();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [isAuthenticated, isAdmin]);
+
   const handleLogout = async () => {
     try {
       await auth.signOut();
@@ -269,6 +292,7 @@ export default function AdminDashboard() {
   const hourlyHireBookings = bookings.filter((b) => b.service_type === "hourlyHire").length;
   const totalRevenue = bookings.reduce((sum, b) => sum + (b.amount || 0), 0);
   const activeDrivers = drivers.filter((d) => d.status === "active").length;
+  const heathrowBookings = filterHeathrowBookings(bookings);
 
   return (
     <SidebarProvider>
@@ -347,6 +371,17 @@ export default function AdminDashboard() {
               >
                 <Settings className="h-5 w-5" />
                 {isSidebarOpen && <span>Price Settings</span>}
+              </SidebarMenuItem>
+              <SidebarMenuItem
+                onClick={() => setActiveTab("heathrow")}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                  activeTab === "heathrow" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
+                  !isSidebarOpen && "justify-center"
+                )}
+              >
+                <Shield className="h-5 w-5" />
+                {isSidebarOpen && <span>Heathrow Monitor</span>}
               </SidebarMenuItem>
             </SidebarGroup>
           </SidebarContent>
@@ -523,6 +558,66 @@ export default function AdminDashboard() {
                 fetchServicePricing={fetchServicePricing}
                 fetchExtraCharges={fetchExtraCharges}
               />
+            )}
+
+            {activeTab === "heathrow" && (
+              <div className="space-y-6">
+                <div className="bg-white p-4 rounded-lg shadow-md">
+                  <h3 className="text-lg font-semibold text-gray-900">Heathrow Monitoring Board</h3>
+                  <p className="text-sm text-gray-500">Track Heathrow and terminal-related jobs as they move through the live service workflow.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <p className="text-sm text-gray-500">Heathrow Jobs</p>
+                    <p className="text-2xl font-bold text-gray-900">{heathrowBookings.length}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <p className="text-sm text-gray-500">In Progress</p>
+                    <p className="text-2xl font-bold text-gray-900">{heathrowBookings.filter((job) => ["assigned", "accepted", "picked_up"].includes(job.status)).length}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <p className="text-sm text-gray-500">Completed</p>
+                    <p className="text-2xl font-bold text-gray-900">{heathrowBookings.filter((job) => job.status === "completed").length}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-4 border-b">
+                    <h4 className="text-md font-semibold text-gray-900">Live Heathrow Jobs</h4>
+                  </div>
+                  {heathrowBookings.length === 0 ? (
+                    <div className="p-4 text-sm text-gray-500">No Heathrow-related jobs yet.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 text-left text-gray-600">
+                          <tr>
+                            <th className="p-4">Booking Ref</th>
+                            <th className="p-4">Passenger</th>
+                            <th className="p-4">Route</th>
+                            <th className="p-4">Service Time</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4">Priority</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {heathrowBookings.map((job) => (
+                            <tr key={job.id} className="border-b">
+                              <td className="p-4">{job.booking_ref || "N/A"}</td>
+                              <td className="p-4">{job.full_name || "Guest passenger"}</td>
+                              <td className="p-4">{job.pickup_location} → {job.dropoff_location || "N/A"}</td>
+                              <td className="p-4">{new Date(job.date_time).toLocaleString()}</td>
+                              <td className="p-4">{job.status}</td>
+                              <td className="p-4">{getMonitoringPriority(job.status)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
