@@ -30,6 +30,7 @@ import { auth } from "@/lib/supabase";
 import { onAuthStateChanged } from "@/lib/supabase-auth";
 import { useRouter } from "next/navigation";
 import { isAdminUser } from "@/lib/adminUtils";
+import { buildUnauthorizedNotification } from "@/lib/notifications";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +44,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
 import { filterHeathrowBookings, getMonitoringPriority } from "@/lib/heathrowMonitoring";
+import { buildAssignmentNotification, buildGreeterStatusNotification } from "@/lib/notifications";
+import { getPrimaryFlightNumber } from "@/lib/flightStatus";
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -72,6 +75,7 @@ export default function AdminDashboard() {
   const [driverPayments, setDriverPayments] = useState<DriverPayment[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(true);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [flightStatuses, setFlightStatuses] = useState<Record<string, { status: string; terminal: string | null; source: string }>>({});
 
   const refreshDashboardData = async () => {
     await Promise.all([
@@ -114,6 +118,8 @@ export default function AdminDashboard() {
 
         if (!isAdmin) {
           console.log("User is not admin, signing out and redirecting...");
+          const notice = buildUnauthorizedNotification("admin");
+          toast.error(notice.message);
           await auth.signOut();
           window.location.replace("/administrator/signin");
           return;
@@ -197,7 +203,12 @@ export default function AdminDashboard() {
     }
 
     updateBookingInState(bookingId, result);
-    toast.success(isUnassign ? "Greeter unassigned" : "Greeter assigned");
+    if (isUnassign) {
+      toast.success("Greeter unassigned");
+    } else {
+      const notice = buildAssignmentNotification(result.booking_ref || bookingId);
+      toast.success(notice.message);
+    }
   };
 
   const handleMarkBookingCompleted = async (bookingId: string) => {
@@ -218,7 +229,34 @@ export default function AdminDashboard() {
     }
 
     updateBookingInState(bookingId, result);
-    toast.success("Booking marked as completed");
+    const notice = buildGreeterStatusNotification("completed", result.booking_ref || bookingId);
+    toast.success(notice.message);
+  };
+
+  const loadFlightStatuses = async (items: Booking[]) => {
+    const relevant = filterHeathrowBookings(items);
+    const flights = Array.from(
+      new Set(relevant.map((booking) => getPrimaryFlightNumber(booking)).filter(Boolean))
+    );
+
+    if (flights.length === 0) {
+      setFlightStatuses({});
+      return;
+    }
+
+    const entries = await Promise.all(
+      flights.map(async (flight) => {
+        try {
+          const response = await fetch(`/api/flight-status?flight=${encodeURIComponent(flight)}`, { cache: "no-store" });
+          const payload = response.ok ? await response.json() : null;
+          return [flight, { status: payload?.status || "Unknown", terminal: payload?.terminal || null, source: payload?.source || "fallback" }] as const;
+        } catch {
+          return [flight, { status: "Unknown", terminal: null, source: "fallback" }] as const;
+        }
+      })
+    );
+
+    setFlightStatuses(Object.fromEntries(entries));
   };
 
   const handleDeleteBooking = async (bookingId: string) => {
@@ -237,6 +275,10 @@ export default function AdminDashboard() {
     setBookings((current) => current.filter((booking) => booking.id !== bookingId));
     toast.success("Booking removed from the active list");
   };
+
+  useEffect(() => {
+    void loadFlightStatuses(bookings);
+  }, [bookings]);
 
   useEffect(() => {
     if (!isAuthenticated || !isAdmin) return;
@@ -598,6 +640,7 @@ export default function AdminDashboard() {
                             <th className="p-4">Route</th>
                             <th className="p-4">Service Time</th>
                             <th className="p-4">Status</th>
+                            <th className="p-4">Flight</th>
                             <th className="p-4">Priority</th>
                           </tr>
                         </thead>
@@ -609,6 +652,14 @@ export default function AdminDashboard() {
                               <td className="p-4">{job.pickup_location} → {job.dropoff_location || "N/A"}</td>
                               <td className="p-4">{new Date(job.date_time).toLocaleString()}</td>
                               <td className="p-4">{job.status}</td>
+                              <td className="p-4">
+                                {(() => {
+                                  const flight = getPrimaryFlightNumber(job);
+                                  if (!flight) return "N/A";
+                                  const statusInfo = flightStatuses[flight];
+                                  return `${flight} · ${statusInfo?.status || "Loading"}${statusInfo?.terminal ? ` (${statusInfo.terminal})` : ""} · ${statusInfo?.source === "remote" ? "Live" : "Simulated"}`;
+                                })()}
+                              </td>
                               <td className="p-4">{getMonitoringPriority(job.status)}</td>
                             </tr>
                           ))}

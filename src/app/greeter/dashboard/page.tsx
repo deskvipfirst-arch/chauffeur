@@ -11,6 +11,11 @@ import { Loader2, LogOut } from "lucide-react";
 
 import { getGreeterActionConfig, getGreeterStatusLabel } from "@/lib/greeterUi";
 import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
+import { buildGreeterStatusNotification } from "@/lib/notifications";
+import { toast } from "sonner";
+import { isGreeterUser } from "@/lib/adminUtils";
+import { buildUnauthorizedNotification } from "@/lib/notifications";
+import { getPrimaryFlightNumber } from "@/lib/flightStatus";
 
 export default function GreeterDashboardPage() {
   const router = useRouter();
@@ -18,6 +23,7 @@ export default function GreeterDashboardPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [flightStatuses, setFlightStatuses] = useState<Record<string, { status: string; terminal: string | null; source: string }>>({});
 
   const loadJobs = useCallback(async (email?: string | null) => {
     if (!email) {
@@ -40,10 +46,18 @@ export default function GreeterDashboardPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       if (!nextUser) {
         router.push("/user/signin");
+        return;
+      }
+
+      const allowed = await isGreeterUser(nextUser.uid);
+      if (!allowed) {
+        const notice = buildUnauthorizedNotification("greeter");
+        toast.error(notice.message);
+        router.push("/user/dashboard");
         return;
       }
 
@@ -71,18 +85,51 @@ export default function GreeterDashboardPage() {
     };
   }, [loadJobs, user?.email]);
 
+  useEffect(() => {
+    const loadFlightStatuses = async () => {
+      const flights = Array.from(new Set(jobs.map((job) => getPrimaryFlightNumber(job)).filter(Boolean)));
+      if (flights.length === 0) {
+        setFlightStatuses({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        flights.map(async (flight) => {
+          try {
+            const response = await fetch(`/api/flight-status?flight=${encodeURIComponent(flight)}`, { cache: "no-store" });
+            const payload = response.ok ? await response.json() : null;
+            return [flight, { status: payload?.status || "Unknown", terminal: payload?.terminal || null, source: payload?.source || "fallback" }] as const;
+          } catch {
+            return [flight, { status: "Unknown", terminal: null, source: "fallback" }] as const;
+          }
+        })
+      );
+
+      setFlightStatuses(Object.fromEntries(entries));
+    };
+
+    void loadFlightStatuses();
+  }, [jobs]);
+
   const handleJobAction = async (jobId: string, action: string) => {
     if (!user?.email) return;
 
     try {
       setActiveJobId(jobId);
-      await fetch(`/api/greeter/jobs/${jobId}`, {
+      const response = await fetch(`/api/greeter/jobs/${jobId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email: user.email, action }),
       });
+
+      const result = response.ok ? await response.json() : null;
+      if (result) {
+        const notice = buildGreeterStatusNotification(result.driver_status || result.status || action, result.booking_ref || jobId);
+        toast.success(notice.message);
+      }
+
       await loadJobs(user.email);
     } finally {
       setActiveJobId(null);
@@ -142,6 +189,14 @@ export default function GreeterDashboardPage() {
                     <p><span className="font-semibold">Dropoff:</span> {job.dropoff_location || "N/A"}</p>
                     <p><span className="font-semibold">When:</span> {new Date(job.date_time).toLocaleString()}</p>
                     <p><span className="font-semibold">Passenger count:</span> {job.passengers || 1}</p>
+                    {(() => {
+                      const flight = getPrimaryFlightNumber(job);
+                      if (!flight) return null;
+                      const info = flightStatuses[flight];
+                      return (
+                        <p><span className="font-semibold">Flight:</span> {flight} · {info?.status || "Loading"}{info?.terminal ? ` (${info.terminal})` : ""} · {info?.source === "remote" ? "Live" : "Simulated"}</p>
+                      );
+                    })()}
 
                     {nextAction ? (
                       <div className="pt-2">

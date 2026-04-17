@@ -23,14 +23,25 @@ export async function createAdminUser(email: string, password: string) {
   }
 }
 
-export async function isAdminUser(userId: string) {
+export async function getUserRole(userId: string) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
-    return userDoc.exists() && userDoc.data().role === "admin";
+    if (!userDoc.exists()) return null;
+    return userDoc.data().role || null;
   } catch (error) {
-    console.error("Error checking admin status:", error);
-    return false;
+    console.error("Error checking user role:", error);
+    return null;
   }
+}
+
+export async function isAdminUser(userId: string) {
+  const role = await getUserRole(userId);
+  return role === "admin";
+}
+
+export async function isGreeterUser(userId: string) {
+  const role = await getUserRole(userId);
+  return role === "greeter" || role === "admin";
 }
 
 // Function to create the first admin user
