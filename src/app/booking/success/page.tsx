@@ -18,8 +18,8 @@ export default function SuccessPage() {
           Payment Confirmed.
         </h1>
         <p className="text-lg mb-8">
-          Thank you for booking with <span className="text-gray-300 font-medium">London Chauffeur Hire</span>. 
-          Your ride is confirmed and a confirmation email has been sent to you. 
+          Thank you for booking with <span className="text-gray-300 font-medium">London Chauffeur Hire</span>.
+          Your ride is confirmed, and your confirmation email will arrive shortly.
           Sit back, relax, and let luxury drive you.
         </p>
         <Link

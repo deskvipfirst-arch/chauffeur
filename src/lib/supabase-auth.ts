@@ -51,7 +51,7 @@ export async function createUserWithEmailAndPassword(
   _auth: typeof auth,
   email: string,
   password: string
-): Promise<{ user: CompatUser }> {
+): Promise<{ user: CompatUser; session: Session | null }> {
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw normalizeAuthError(error);
 
@@ -60,10 +60,15 @@ export async function createUserWithEmailAndPassword(
     throw normalizeAuthError({ message: "No user returned from Supabase sign-up." });
   }
 
-  return { user };
+  return { user, session: data.session ?? null };
 }
 
 export async function updateProfile(_user: any, profile: { displayName?: string; photoURL?: string | null }) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) {
+    return;
+  }
+
   const { error } = await supabase.auth.updateUser({
     data: {
       displayName: profile.displayName,
@@ -99,6 +104,22 @@ export async function sendPasswordResetEmail(_auth: typeof auth, email: string) 
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
+  });
+
+  if (error) throw normalizeAuthError(error);
+}
+
+export async function resendSignUpVerificationEmail(_auth: typeof auth, email: string) {
+  const emailRedirectTo =
+    (typeof window !== "undefined" ? `${window.location.origin}/user/dashboard` : undefined) ||
+    process.env.NEXT_PUBLIC_BASE_URL;
+
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: {
+      emailRedirectTo,
+    },
   });
 
   if (error) throw normalizeAuthError(error);

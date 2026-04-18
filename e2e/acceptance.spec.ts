@@ -11,9 +11,61 @@ test.describe("acceptance smoke", () => {
     await expect(page.getByRole("link", { name: /book now/i }).first()).toBeVisible();
 
     await page.goto("/booking");
+    await expect(page.getByRole("heading", { name: /book your journey/i })).toBeVisible();
     await expect(page.getByPlaceholder(/enter your full name/i)).toBeVisible();
     await expect(page.getByPlaceholder(/enter your email/i)).toBeVisible();
     await expect(page.getByPlaceholder(/enter your phone number/i)).toBeVisible();
+  });
+
+  test("booking summary is the editable journey form", async ({ page }) => {
+    await page.goto("/booking");
+
+    await expect(page.getByRole("heading", { name: /booking summary/i })).toBeVisible();
+    await expect(page.getByText(/journey details/i)).toHaveCount(0);
+    await expect(page.getByLabel(/service type/i).first()).toBeVisible();
+    await expect(page.getByLabel(/pickup location|meet up location/i).first()).toBeVisible();
+  });
+
+  test("booking details carry into sign up", async ({ page }) => {
+    const email = `booking.e2e.${Date.now()}@example.com`;
+
+    await page.goto("/booking");
+    const pickupLocationSelect = page.locator("main").getByRole("combobox").nth(2);
+    await expect(pickupLocationSelect).toBeVisible();
+    await page.waitForFunction(() => {
+      const selects = Array.from(document.querySelectorAll("main select"));
+      return selects.some((select) => Array.from((select as HTMLSelectElement).options).some((option) => option.text.includes("Heathrow Airport Terminal 2")));
+    });
+    await pickupLocationSelect.selectOption({ label: "Heathrow Airport Terminal 2" });
+    await page.getByPlaceholder(/enter arrival flight number/i).fill("BA123");
+    await page.getByPlaceholder(/enter your full name/i).fill("Jane Smith");
+    await page.getByPlaceholder(/enter your email/i).fill(email);
+    await page.getByPlaceholder(/enter your phone number/i).fill("07123456789");
+    await page.getByRole("button", { name: /continue to booking/i }).click();
+
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: /^sign up$/i }).click();
+
+    await expect(page).toHaveURL(/user\/signup/);
+    await expect(page.locator("#firstName")).toHaveValue("Jane");
+    await expect(page.locator("#lastName")).toHaveValue("Smith");
+    await expect(page.locator("#email")).toHaveValue(email);
+    await expect(page.locator("#phone")).toHaveValue("07123456789");
+
+    await page.locator("#password").fill("E2E!Booking2026");
+    await page.locator("#confirmPassword").fill("E2E!Booking2026");
+    await page.getByRole("button", { name: /^sign up$/i }).click();
+
+    await expect(page).toHaveURL(/user\/signin|user\/dashboard|booking/, { timeout: 20_000 });
+    if (page.url().includes("/user/signin")) {
+      await expect(page.getByText(/account created|verify your email|continue/i).first()).toBeVisible();
+    }
+  });
+
+  test("user sign-in shows verification resend help", async ({ page }) => {
+    await page.goto("/user/signin?message=account_created");
+    await expect(page.getByText(/account created successfully/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /resend verification email/i })).toBeVisible();
   });
 
   test("admin sign-in page renders", async ({ page }) => {

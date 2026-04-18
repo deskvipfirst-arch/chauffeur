@@ -41,6 +41,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 // import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
@@ -57,6 +58,14 @@ export default function AdminDashboard() {
   >("bookings");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userEmail, setUserEmail] = useState<string>("");
+  const [emailStatus, setEmailStatus] = useState<{
+    configured: boolean;
+    fromEmail: string | null;
+    officeDestination: string | null;
+    missing: string[];
+  } | null>(null);
+  const [isEmailStatusLoading, setIsEmailStatusLoading] = useState(true);
+  const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
   const router = useRouter();
 
   // State for vehicles
@@ -78,6 +87,27 @@ export default function AdminDashboard() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [greeterInvoices, setGreeterInvoices] = useState<GreeterInvoice[]>([]);
   const [flightStatuses, setFlightStatuses] = useState<Record<string, { status: string; terminal: string | null; source: string }>>({});
+
+  const fetchEmailStatus = async () => {
+    try {
+      const token = await getAccessToken();
+      const response = await fetch("/api/admin/email", {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const result = await response.json().catch(() => null);
+
+      if (response.ok && result?.email) {
+        setEmailStatus(result.email);
+      } else {
+        setEmailStatus(null);
+      }
+    } catch {
+      setEmailStatus(null);
+    } finally {
+      setIsEmailStatusLoading(false);
+    }
+  };
 
   const refreshDashboardData = async () => {
     await Promise.all([
@@ -102,6 +132,7 @@ export default function AdminDashboard() {
       fetchGreeterInvoices().then(({ data }) => {
         setGreeterInvoices(data || []);
       }),
+      fetchEmailStatus(),
     ]);
   };
 
@@ -291,6 +322,30 @@ export default function AdminDashboard() {
 
     setBookings((current) => current.filter((booking) => booking.id !== bookingId));
     toast.success("Booking removed from the active list");
+  };
+
+  const handleSendTestEmail = async () => {
+    try {
+      setIsSendingEmailTest(true);
+      const token = await getAccessToken();
+      const response = await fetch("/api/admin/email", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error(result?.error || "Failed to send test email");
+        return;
+      }
+
+      toast.success(result?.message || "Test email sent successfully");
+      await fetchEmailStatus();
+    } catch {
+      toast.error("Failed to send test email");
+    } finally {
+      setIsSendingEmailTest(false);
+    }
   };
 
   useEffect(() => {
@@ -528,6 +583,35 @@ export default function AdminDashboard() {
                   <div className="bg-white p-4 rounded-lg shadow-md">
                     <h3 className="text-sm font-medium text-gray-500">Hire By Hour Bookings</h3>
                     <p className="text-2xl font-bold text-gray-900">{hourlyHireBookings}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md lg:col-span-2">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500">Email Delivery</h3>
+                        <p className={cn(
+                          "mt-2 text-sm font-medium",
+                          emailStatus?.configured ? "text-emerald-700" : "text-amber-700"
+                        )}>
+                          {isEmailStatusLoading
+                            ? "Checking email setup..."
+                            : emailStatus?.configured
+                              ? "Resend is configured and ready."
+                              : "Email delivery needs attention."}
+                        </p>
+                        {emailStatus?.officeDestination && (
+                          <p className="text-xs text-gray-500 mt-1">Office inbox: {emailStatus.officeDestination}</p>
+                        )}
+                        {emailStatus?.fromEmail && (
+                          <p className="text-xs text-gray-500">Sender: {emailStatus.fromEmail}</p>
+                        )}
+                        {!isEmailStatusLoading && emailStatus && !emailStatus.configured && emailStatus.missing.length > 0 && (
+                          <p className="text-xs text-amber-700 mt-1">Missing: {emailStatus.missing.join(", ")}</p>
+                        )}
+                      </div>
+                      <Button type="button" variant="outline" onClick={handleSendTestEmail} disabled={isSendingEmailTest || isEmailStatusLoading}>
+                        {isSendingEmailTest ? "Sending..." : "Send test email"}
+                      </Button>
+                    </div>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow-md">
                     <h3 className="text-sm font-medium text-gray-500">Total Revenue (£)</h3>

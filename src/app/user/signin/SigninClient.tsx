@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
@@ -7,10 +7,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { Label } from "@radix-ui/react-label";
 import { Icons } from "@/components/ui/icons";
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from "@/lib/supabase-auth";
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, resendSignUpVerificationEmail, sendPasswordResetEmail } from "@/lib/supabase-auth";
 import { auth } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { loadStoredBookingDraft } from "@/lib/bookingFlow";
 
 const logoURL = "/favicon.ico";
 
@@ -28,8 +29,20 @@ export default function SigninClient({
   const [resetEmail, setResetEmail] = useState("");
   const [resetStatus, setResetStatus] = useState<string | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
   const router = useRouter();
   const errorMessage = (searchParams?.error as string) || null;
+  const successMessage = (searchParams?.message as string) || null;
+  const fromBooking = searchParams?.from === "booking";
+
+  useEffect(() => {
+    const draft = loadStoredBookingDraft();
+    if (!draft?.email) return;
+
+    setEmail((prev) => prev || draft.email || "");
+    setResetEmail((prev) => prev || draft.email || "");
+  }, []);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,6 +157,33 @@ export default function SigninClient({
     }
   };
 
+  const handleResendVerification = async () => {
+    const targetEmail = (email || resetEmail).trim();
+    if (!targetEmail) {
+      const message = "Enter your email address first so the verification message can be resent.";
+      setVerifyStatus(message);
+      toast.error(message);
+      return;
+    }
+
+    setVerifyLoading(true);
+    setVerifyStatus(null);
+    try {
+      await resendSignUpVerificationEmail(auth, targetEmail);
+      const message = "Verification email sent. Please check your inbox and spam folder.";
+      setVerifyStatus(message);
+      toast.success(message);
+    } catch (err: any) {
+      const message = err?.code === "auth/too-many-requests"
+        ? "Too many attempts. Please wait a little before trying again."
+        : "We could not resend the verification email right now.";
+      setVerifyStatus(message);
+      toast.error(message);
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen bg-muted flex flex-col items-center justify-center">
       <div className="absolute top-20 left-50 md:block hidden">
@@ -232,10 +272,25 @@ export default function SigninClient({
                 : errorMessage}
             </p>
           )}
+          {successMessage === "account_created" && (
+            <div className="space-y-2">
+              <p className="text-green-600 text-center">
+                Account created successfully. Please check your inbox and spam folder, then sign in to continue.
+              </p>
+              <Button type="button" variant="outline" className="w-full" onClick={handleResendVerification} disabled={verifyLoading}>
+                {verifyLoading ? "Resending..." : "Resend verification email"}
+              </Button>
+            </div>
+          )}
+          {verifyStatus && (
+            <p className={`text-center text-sm ${verifyStatus.toLowerCase().includes("sent") ? "text-green-600" : "text-amber-700"}`}>
+              {verifyStatus}
+            </p>
+          )}
 
           <p className="text-center">
             Don&apos;t have an account?{" "}
-            <Link href="/user/signup" className="text-blue-500 hover:underline">
+            <Link href={fromBooking ? "/user/signup?from=booking" : "/user/signup"} className="text-blue-500 hover:underline">
               Sign Up
             </Link>
           </p>

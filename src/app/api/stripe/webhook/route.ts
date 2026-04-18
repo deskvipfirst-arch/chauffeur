@@ -1,8 +1,14 @@
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb } from "@/lib/supabase-admin";
+import {
+  buildBookingConfirmationEmail,
+  buildOfficeBookingNotificationEmail,
+  canSendTransactionalEmail,
+  sendTransactionalEmail,
+} from "@/lib/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -47,12 +53,70 @@ export async function POST(req: Request) {
 
       // Update the booking status
       const bookingDoc = querySnapshot.docs[0];
+      const bookingData = bookingDoc.data?.() || {};
+      const alreadyPaid = String(bookingData.payment_status || "").toLowerCase() === "paid";
 
       await adminDb.collection("bookings").doc(bookingDoc.id).update({
         status: "confirmed",
         payment_status: "Paid",
-        updated_at: new Date()
+        updated_at: new Date(),
       });
+
+      if (!alreadyPaid && canSendTransactionalEmail()) {
+        const serviceType = String(bookingData.service_type || bookingData.serviceType || "Booking")
+          .replace(/([A-Z])/g, " $1")
+          .replace(/^./, (value) => value.toUpperCase())
+          .trim();
+
+        const customerEmail = buildBookingConfirmationEmail({
+          fullName: String(bookingData.full_name || bookingData.fullName || session.customer_details?.name || "Customer"),
+          email: String(bookingData.email || session.customer_details?.email || ""),
+          bookingRef: String(bookingData.booking_ref || bookingDoc.id),
+          serviceType,
+          dateTime: String(bookingData.date_time || bookingData.dateTime || new Date().toISOString()),
+          pickupLocation: String(bookingData.pickup_location || bookingData.pickupLocation || "TBC"),
+          dropoffLocation: String(bookingData.dropoff_location || bookingData.dropoffLocation || ""),
+          amount: Number(bookingData.amount || (session.amount_total || 0) / 100 || 0),
+        });
+
+        const officeEmail = buildOfficeBookingNotificationEmail({
+          fullName: String(bookingData.full_name || bookingData.fullName || session.customer_details?.name || "Customer"),
+          email: String(bookingData.email || session.customer_details?.email || ""),
+          bookingRef: String(bookingData.booking_ref || bookingDoc.id),
+          serviceType,
+          dateTime: String(bookingData.date_time || bookingData.dateTime || new Date().toISOString()),
+          pickupLocation: String(bookingData.pickup_location || bookingData.pickupLocation || "TBC"),
+          dropoffLocation: String(bookingData.dropoff_location || bookingData.dropoffLocation || ""),
+          amount: Number(bookingData.amount || (session.amount_total || 0) / 100 || 0),
+        });
+
+        const opsRecipient = process.env.BOOKING_NOTIFICATION_EMAIL || process.env.CONTACT_EMAIL;
+        const deliveries = [
+          customerEmail && (bookingData.email || session.customer_details?.email)
+            ? sendTransactionalEmail({
+                to: String(bookingData.email || session.customer_details?.email || ""),
+                subject: customerEmail.subject,
+                text: customerEmail.text,
+                html: customerEmail.html,
+              })
+            : Promise.resolve(null),
+          opsRecipient
+            ? sendTransactionalEmail({
+                to: opsRecipient,
+                subject: officeEmail.subject,
+                text: officeEmail.text,
+                html: officeEmail.html,
+              })
+            : Promise.resolve(null),
+        ];
+
+        const results = await Promise.allSettled(deliveries);
+        results.forEach((result) => {
+          if (result.status === "rejected") {
+            console.error("Booking email delivery failed:", result.reason);
+          }
+        });
+      }
 
       return NextResponse.json({ received: true });
     }

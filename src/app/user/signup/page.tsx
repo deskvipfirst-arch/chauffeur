@@ -1,16 +1,18 @@
 "use client";
-import React, { useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { toast } from "sonner";
 import { createUserWithEmailAndPassword, updateProfile } from "@/lib/supabase-auth";
 import { auth, db } from "@/lib/supabase";
 import { doc, setDoc } from "@/lib/supabase-db";
+import { getSignupErrorMessage, loadStoredBookingDraft, saveStoredBookingDraft, splitFullName } from "@/lib/bookingFlow";
 
-export default function SignUpPage() {
+function SignUpContent() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -20,12 +22,30 @@ export default function SignUpPage() {
     confirmPassword: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromBooking = searchParams.get("from") === "booking";
+
+  useEffect(() => {
+    const draft = loadStoredBookingDraft();
+    if (!draft) return;
+
+    const name = splitFullName(draft.fullName || "");
+    setFormData((prev) => ({
+      ...prev,
+      firstName: prev.firstName || name.firstName,
+      lastName: prev.lastName || name.lastName,
+      email: prev.email || draft.email || "",
+      phone: prev.phone || draft.phone || "",
+    }));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
@@ -35,41 +55,58 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      // Create user in Supabase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
 
-      // Update display name
       await updateProfile(userCredential.user, {
-        displayName: `${formData.firstName} ${formData.lastName}`,
+        displayName: `${formData.firstName} ${formData.lastName}`.trim(),
       });
 
-      // Create user profile in Firestore
-      await setDoc(doc(db, "profiles", userCredential.user.uid), {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+      try {
+        await setDoc(doc(db, "profiles", userCredential.user.uid), {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          role: "user",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (profileError) {
+        console.warn("Profile setup warning:", profileError);
+      }
+
+      saveStoredBookingDraft({
+        ...loadStoredBookingDraft(),
+        fullName: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
         phone: formData.phone,
-        role: "user",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       });
 
-      router.push("/user/dashboard");
-    } catch (err) {
+      const message = userCredential.session
+        ? "Account created successfully."
+        : "Account created. Please check your inbox and spam folder, then sign in to continue your booking.";
+
+      setSuccessMessage(message);
+      toast.success(message);
+
+      router.push(
+        userCredential.session
+          ? fromBooking
+            ? "/booking"
+            : "/user/dashboard"
+          : fromBooking
+            ? "/user/signin?from=booking&message=account_created"
+            : "/user/signin?message=account_created"
+      );
+    } catch (err: any) {
       console.error("Error signing up:", err);
-      if (err instanceof Error) {
-        if (err.message.includes("email-already-in-use")) {
-          setError("Email is already registered");
-        } else if (err.message.includes("weak-password")) {
-          setError("Password should be at least 6 characters");
-        } else {
-          setError("Failed to create account. Please try again.");
-        }
-      }
+      const message = getSignupErrorMessage(err);
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -174,6 +211,7 @@ export default function SignUpPage() {
             </div>
 
             {error && <p className="text-red-500 text-sm">{error}</p>}
+            {successMessage && <p className="text-green-600 text-sm">{successMessage}</p>}
 
             <Button
               type="submit"
@@ -185,7 +223,7 @@ export default function SignUpPage() {
 
             <p className="text-center text-sm text-gray-600">
               Already have an account?{" "}
-              <Link href="/user/signin" className="text-primary hover:underline">
+              <Link href={fromBooking ? "/user/signin?from=booking" : "/user/signin"} className="text-primary hover:underline">
                 Sign in
               </Link>
             </p>
@@ -193,5 +231,13 @@ export default function SignUpPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-muted flex items-center justify-center">Loading...</div>}>
+      <SignUpContent />
+    </Suspense>
   );
 }

@@ -41,11 +41,13 @@ export default function ContactPage() {
         body: JSON.stringify(formData),
       });
 
+      const result = await response.json().catch(() => ({ message: "Unable to send message right now." }));
+
       if (!response.ok) {
-        throw new Error("Failed to send the email");
+        throw new Error(result.message || "Failed to send the email");
       }
 
-      setSuccess("Your message has been sent successfully!");
+      setSuccess(result.message || "Your message has been sent successfully!");
       setFormData({
         firstName: "",
         lastName: "",
@@ -54,8 +56,8 @@ export default function ContactPage() {
         subject: "",
         message: "",
       });
-    } catch {
-      setError("Error sending message. Please try again later.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Error sending message. Please try again later.");
     } finally {
       setIsSubmitting(false);
     }

@@ -35,6 +35,21 @@ npm run build
 4. Greeter submits an invoice
 5. Office reviews and marks the invoice paid
 
+## Email delivery with Resend
+
+Set these values to enable transactional email delivery:
+- RESEND_API_KEY
+- RESEND_FROM_EMAIL
+- CONTACT_EMAIL
+- BOOKING_NOTIFICATION_EMAIL
+
+This powers:
+- contact form delivery to your office inbox
+- paid booking confirmation emails to customers
+- office notification emails for new paid bookings
+
+For sign-up verification and password-reset emails, Supabase Auth still handles delivery. To route those through Resend as well, configure Resend SMTP inside your Supabase Auth email settings.
+
 ## Optional flight provider
 
 Set these values to use a real flight-status source:

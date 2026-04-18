@@ -3,7 +3,6 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { getLocations } from "@/lib/supabase";
 import type { Location } from "@/lib/types";
 import {
   Dialog,
@@ -19,6 +18,7 @@ import { onAuthStateChanged } from "@/lib/supabase-auth";
 import { auth, db } from "@/lib/supabase";
 import { doc, getDoc } from "@/lib/supabase-db";
 import { Icons } from "@/components/ui/icons";
+import { loadStoredBookingDraft, saveStoredBookingDraft } from "@/lib/bookingFlow";
 
 type BookingDetails = {
   pickupLocationId: string | null;
@@ -81,38 +81,38 @@ function BookingContent() {
     wantPorter: false,
     contactConsent: false,
     service_type: "meetAndGreet",
-    service_subtype: null,
+    service_subtype: "arrival",
     calculatedAmount: null,
     flightNumberArrival: "",
     flightNumberDeparture: "",
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (user) {
-        // Fetch user profile data
-        getDoc(doc(db, "profiles", user.uid)).then((profileDoc) => {
-          if (profileDoc.exists()) {
-            setBookingDetails((prev) => ({
-              ...prev,
-              fullName: `${profileDoc.data().firstName} ${profileDoc.data().lastName}`,
-              email: user.email || "",
-              phone: profileDoc.data().phone || "",
-            }));
-          }
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
+      if (nextUser) {
+        getDoc(doc(db, "profiles", nextUser.uid)).then((profileDoc) => {
+          const firstName = String(profileDoc.data()?.firstName || "").trim();
+          const lastName = String(profileDoc.data()?.lastName || "").trim();
+          const profileName = `${firstName} ${lastName}`.trim();
+
+          setBookingDetails((prev) => ({
+            ...prev,
+            fullName: prev.fullName || profileName,
+            email: prev.email || nextUser.email || "",
+            phone: prev.phone || profileDoc.data()?.phone || "",
+          }));
         });
       }
     });
 
-    // Load service details from localStorage
-    const serviceDetails = localStorage.getItem('serviceDetails');
-    if (serviceDetails) {
-      const details = JSON.parse(serviceDetails);
-      setBookingDetails(prev => ({
+    const storedDraft = loadStoredBookingDraft();
+    if (storedDraft) {
+      setBookingDetails((prev) => ({
         ...prev,
-        ...details,
-        calculatedAmount: details.estimatedPrice || 0,
+        ...storedDraft,
+        date: storedDraft.date ? new Date(storedDraft.date) : prev.date,
+        calculatedAmount: storedDraft.calculatedAmount ?? storedDraft.estimatedPrice ?? prev.calculatedAmount,
       }));
     }
 
@@ -122,11 +122,17 @@ function BookingContent() {
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const locationsData = await getLocations();
-        setLocations(locationsData);
+        const response = await fetch("/api/locations", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to fetch locations");
+        }
+
+        const locationsData = (await response.json()) as Location[];
+        setLocations(Array.isArray(locationsData) ? locationsData : []);
       } catch (err) {
         console.error("Error fetching locations:", err);
-        setLocationsError("Failed to load locations. Please try again.");
+        setLocationsError("Locations could not be loaded automatically. You can still continue by choosing Other and entering the address manually.");
+        setLocations([]);
       } finally {
         setLocationsLoading(false);
       }
@@ -135,12 +141,24 @@ function BookingContent() {
     fetchLocations();
   }, []);
 
+  useEffect(() => {
+    saveStoredBookingDraft({
+      ...bookingDetails,
+      date: bookingDetails.date instanceof Date ? bookingDetails.date.toISOString() : bookingDetails.date,
+    });
+  }, [bookingDetails]);
+
   const handleAuthChoice = async (choice: "signup" | "signin" | "guest") => {
     setShowAuthModal(false);
+    saveStoredBookingDraft({
+      ...bookingDetails,
+      date: bookingDetails.date instanceof Date ? bookingDetails.date.toISOString() : bookingDetails.date,
+    });
+
     if (choice === "signup") {
-      window.location.href = `/user/signup?from=booking`;
+      router.push(`/user/signup?from=booking`);
     } else if (choice === "signin") {
-      window.location.href = `/user/signin?from=booking`;
+      router.push(`/user/signin?from=booking`);
     } else {
       // Handle guest checkout with Stripe
       try {
@@ -148,7 +166,7 @@ function BookingContent() {
         const pickupLocation = locations.find(loc => loc.id === bookingDetails.pickupLocationId);
         const dropoffLocation = locations.find(loc => loc.id === bookingDetails.dropoffLocationId);
         
-        if (!pickupLocation) {
+        if (!pickupLocation && bookingDetails.pickupLocationId !== "other") {
           setNotification({
             type: "error",
             message: "Pickup location is required",
@@ -395,11 +413,8 @@ function BookingContent() {
 
   // Calculate estimated cost
   const calculateEstimatedCost = () => {
-    // Get the stored service details from localStorage
-    const storedServiceDetails = localStorage.getItem('serviceDetails');
-    if (storedServiceDetails) {
-      const { estimatedPrice } = JSON.parse(storedServiceDetails);
-      return estimatedPrice;
+    if (typeof bookingDetails.calculatedAmount === "number" && bookingDetails.calculatedAmount > 0) {
+      return bookingDetails.calculatedAmount;
     }
 
     // Fallback calculation if no stored price
@@ -425,17 +440,10 @@ function BookingContent() {
     return basePrice + vatAmount;
   };
 
-  if (locationsLoading) {
-    return (
-      <div className="min-h-screen bg-muted p-6">
-        <div className="container mx-auto">
-          <div className="flex justify-center items-center h-64">
-            <Icons.spinner className="h-8 w-8 animate-spin" />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const bookingDateValue =
+    bookingDetails.date && !Number.isNaN(new Date(bookingDetails.date).getTime())
+      ? new Date(bookingDetails.date).toISOString().split("T")[0]
+      : "";
 
   return (
     <main className="flex flex-col min-h-screen">
@@ -461,14 +469,18 @@ function BookingContent() {
             </div>
           )}
 
-          {locationsLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-            </div>
-          ) : locationsError ? (
-            <p className="text-red-500 text-center">{locationsError}</p>
-          ) : (
-            <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto">
+            {locationsLoading && (
+              <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                Loading available locations...
+              </div>
+            )}
+            {locationsError && (
+              <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {locationsError}
+              </div>
+            )}
+
               <div className="flex flex-col lg:flex-row gap-6">
                 <div className="lg:w-1/2 bg-gray-200 p-4 md:p-6 rounded-lg">
                   <div className="flex justify-between items-start mb-4">
@@ -490,11 +502,17 @@ function BookingContent() {
                           <strong>Service Type:</strong> Meet and Greet{bookingDetails.service_subtype ? ` (${bookingDetails.service_subtype.charAt(0).toUpperCase() + bookingDetails.service_subtype.slice(1)})` : ""}
                         </p>
                         <p>
-                          <strong>Meet up Location:</strong> {locations.find((loc) => loc.id === bookingDetails.pickupLocationId)?.name || "Not selected"}
+                          <strong>Meet up Location:</strong>{" "}
+                          {bookingDetails.pickupLocationId === "other"
+                            ? bookingDetails.customPickupAddress || "Not selected"
+                            : locations.find((loc) => loc.id === bookingDetails.pickupLocationId)?.name || "Not selected"}
                         </p>
                         {bookingDetails.service_subtype === "connection" && (
                           <p>
-                            <strong>Drop off Location:</strong> {locations.find((loc) => loc.id === bookingDetails.dropoffLocationId)?.name || "Not selected"}
+                            <strong>Drop off Location:</strong>{" "}
+                            {bookingDetails.dropoffLocationId === "other"
+                              ? bookingDetails.customDropoffAddress || "Not selected"
+                              : locations.find((loc) => loc.id === bookingDetails.dropoffLocationId)?.name || "Not selected"}
                           </p>
                         )}
                       </>
@@ -569,8 +587,299 @@ function BookingContent() {
                   </div>
                 </div>
                 <div className="lg:w-1/2 bg-gray-50 p-4 md:p-6 rounded-lg">
-                  <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Enter Your Details</h2>
+                  <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-2">Complete Your Booking</h2>
+                  <p className="text-sm text-muted-foreground mb-4 md:mb-6">
+                    You can edit your journey details here, even if you came directly to this page.
+                  </p>
                   <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="rounded-lg border bg-white p-4 space-y-4">
+                      <h3 className="font-semibold">Journey Details</h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label>Service Type</Label>
+                          <select
+                            className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={bookingDetails.service_type}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                service_type: e.target.value as BookingDetails["service_type"],
+                                service_subtype: e.target.value === "meetAndGreet" ? prev.service_subtype || "arrival" : null,
+                                calculatedAmount: null,
+                              }))
+                            }
+                          >
+                            <option value="meetAndGreet">Meet and Greet</option>
+                            <option value="airportTransfer">Airport Transfer</option>
+                            <option value="hourlyHire">Hire by Hour</option>
+                          </select>
+                        </div>
+
+                        {bookingDetails.service_type === "meetAndGreet" ? (
+                          <div>
+                            <Label>Service Option</Label>
+                            <select
+                              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              value={bookingDetails.service_subtype || "arrival"}
+                              onChange={(e) =>
+                                setBookingDetails((prev) => ({
+                                  ...prev,
+                                  service_subtype: e.target.value as BookingDetails["service_subtype"],
+                                  calculatedAmount: null,
+                                }))
+                              }
+                            >
+                              <option value="arrival">Arrival</option>
+                              <option value="departure">Departure</option>
+                              <option value="connection">Connection</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <div>
+                            <Label>Additional Hours</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={bookingDetails.additionalHours}
+                              onChange={(e) =>
+                                setBookingDetails((prev) => ({
+                                  ...prev,
+                                  additionalHours: Number(e.target.value || 0),
+                                  calculatedAmount: null,
+                                }))
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label>Pickup Location</Label>
+                        <select
+                          className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={bookingDetails.pickupLocationId || ""}
+                          onChange={(e) =>
+                            setBookingDetails((prev) => ({
+                              ...prev,
+                              pickupLocationId: e.target.value,
+                              calculatedAmount: null,
+                            }))
+                          }
+                        >
+                          <option value="">Select pickup location</option>
+                          {locations.map((loc) => (
+                            <option key={loc.id} value={loc.id}>
+                              {loc.name}
+                            </option>
+                          ))}
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
+                      {bookingDetails.pickupLocationId === "other" && (
+                        <div>
+                          <Label>Custom Pickup Address</Label>
+                          <Input
+                            value={bookingDetails.customPickupAddress}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                customPickupAddress: e.target.value,
+                                calculatedAmount: null,
+                              }))
+                            }
+                            placeholder="Enter the pickup address"
+                          />
+                        </div>
+                      )}
+
+                      {(bookingDetails.service_type === "airportTransfer" || bookingDetails.service_subtype === "connection") && (
+                        <>
+                          <div>
+                            <Label>Dropoff Location</Label>
+                            <select
+                              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              value={bookingDetails.dropoffLocationId || ""}
+                              onChange={(e) =>
+                                setBookingDetails((prev) => ({
+                                  ...prev,
+                                  dropoffLocationId: e.target.value,
+                                  calculatedAmount: null,
+                                }))
+                              }
+                            >
+                              <option value="">Select dropoff location</option>
+                              {locations.map((loc) => (
+                                <option key={loc.id} value={loc.id}>
+                                  {loc.name}
+                                </option>
+                              ))}
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
+
+                          {bookingDetails.dropoffLocationId === "other" && (
+                            <div>
+                              <Label>Custom Dropoff Address</Label>
+                              <Input
+                                value={bookingDetails.customDropoffAddress}
+                                onChange={(e) =>
+                                  setBookingDetails((prev) => ({
+                                    ...prev,
+                                    customDropoffAddress: e.target.value,
+                                    calculatedAmount: null,
+                                  }))
+                                }
+                                placeholder="Enter the dropoff address"
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <Label>Date</Label>
+                          <Input
+                            type="date"
+                            value={bookingDateValue}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                date: e.target.value ? new Date(`${e.target.value}T12:00:00`) : undefined,
+                                calculatedAmount: null,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Hour</Label>
+                          <select
+                            className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={bookingDetails.hour}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                hour: e.target.value,
+                                calculatedAmount: null,
+                              }))
+                            }
+                          >
+                            {Array.from({ length: 24 }, (_, index) => {
+                              const value = String(index).padStart(2, "0");
+                              return (
+                                <option key={value} value={value}>
+                                  {value}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                        <div>
+                          <Label>Minute</Label>
+                          <select
+                            className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={bookingDetails.minute}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                minute: e.target.value,
+                                calculatedAmount: null,
+                              }))
+                            }
+                          >
+                            {["00", "15", "30", "45"].map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <Label>Passengers</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={bookingDetails.passengers}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                passengers: Number(e.target.value || 1),
+                                calculatedAmount: null,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Bags</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={bookingDetails.bags}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                bags: Number(e.target.value || 0),
+                                calculatedAmount: null,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Extra Hours</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={bookingDetails.additionalHours}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                additionalHours: Number(e.target.value || 0),
+                                calculatedAmount: null,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      {bookingDetails.service_type === "meetAndGreet" && (
+                        <div className="flex flex-wrap gap-4 text-sm">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={bookingDetails.wantBuggy}
+                              onChange={(e) =>
+                                setBookingDetails((prev) => ({
+                                  ...prev,
+                                  wantBuggy: e.target.checked,
+                                  calculatedAmount: null,
+                                }))
+                              }
+                            />
+                            Need buggy service
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={bookingDetails.wantPorter}
+                              onChange={(e) =>
+                                setBookingDetails((prev) => ({
+                                  ...prev,
+                                  wantPorter: e.target.checked,
+                                  calculatedAmount: null,
+                                }))
+                              }
+                            />
+                            Need porter service
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
                     {bookingDetails.service_type === "meetAndGreet" && (
                       <>
                         {bookingDetails.service_subtype === "arrival" && (
@@ -765,8 +1074,7 @@ function BookingContent() {
                 </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
       </section>
 
       <Dialog open={showAuthModal && !user} onOpenChange={setShowAuthModal}>
