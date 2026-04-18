@@ -444,6 +444,7 @@ function BookingContent() {
     bookingDetails.date && !Number.isNaN(new Date(bookingDetails.date).getTime())
       ? new Date(bookingDetails.date).toISOString().split("T")[0]
       : "";
+  const formControlClassName = "mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
   return (
     <main className="flex flex-col min-h-screen">
@@ -482,9 +483,12 @@ function BookingContent() {
             )}
 
               <div className="flex flex-col lg:flex-row gap-6">
-                <div className="lg:w-1/2 bg-gray-200 p-4 md:p-6 rounded-lg">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-lg font-semibold">Booking Summary</h3>
+                <div className="lg:w-1/2 bg-gray-50 border p-4 md:p-6 rounded-lg">
+                  <div className="flex justify-between items-start mb-4 gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold">Booking Summary</h3>
+                      <p className="text-sm text-muted-foreground">Edit or fill in any missing trip details here.</p>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -495,343 +499,54 @@ function BookingContent() {
                       Go Back
                     </Button>
                   </div>
-                  <div className="space-y-2 text-sm md:text-base">
-                    {bookingDetails.service_type === "meetAndGreet" ? (
-                      <>
-                        <p>
-                          <strong>Service Type:</strong> Meet and Greet{bookingDetails.service_subtype ? ` (${bookingDetails.service_subtype.charAt(0).toUpperCase() + bookingDetails.service_subtype.slice(1)})` : ""}
-                        </p>
-                        <p>
-                          <strong>Meet up Location:</strong>{" "}
-                          {bookingDetails.pickupLocationId === "other"
-                            ? bookingDetails.customPickupAddress || "Not selected"
-                            : locations.find((loc) => loc.id === bookingDetails.pickupLocationId)?.name || "Not selected"}
-                        </p>
-                        {bookingDetails.service_subtype === "connection" && (
-                          <p>
-                            <strong>Drop off Location:</strong>{" "}
-                            {bookingDetails.dropoffLocationId === "other"
-                              ? bookingDetails.customDropoffAddress || "Not selected"
-                              : locations.find((loc) => loc.id === bookingDetails.dropoffLocationId)?.name || "Not selected"}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <p>
-                          <strong>Service Type:</strong> {bookingDetails.service_type === "airportTransfer" ? "Airport Transfer" : "Hire by Hour"}
-                        </p>
-                        <p>
-                          <strong>Pickup Location:</strong>{" "}
-                          {bookingDetails.pickupLocationId === "other"
-                            ? bookingDetails.customPickupAddress
-                            : locations.find((loc) => loc.id === bookingDetails.pickupLocationId)?.name || "Not selected"}
-                        </p>
-                        {bookingDetails.service_type === "airportTransfer" && (
-                          <p>
-                            <strong>Dropoff Location:</strong>{" "}
-                            {bookingDetails.dropoffLocationId === "other"
-                              ? bookingDetails.customDropoffAddress
-                              : locations.find((loc) => loc.id === bookingDetails.dropoffLocationId)?.name || "Not selected"}
-                          </p>
-                        )}
-                        <p>
-                          <strong>Passengers:</strong> {bookingDetails.passengers}
-                        </p>
-                        <p>
-                          <strong>Additional Hours:</strong> {bookingDetails.additionalHours}
-                        </p>
-                      </>
-                    )}
-                    <p>
-                      <strong>Date:</strong>{" "}
-                      {bookingDetails.date
-                        ? new Date(bookingDetails.date).toLocaleDateString()
-                        : "Not selected"}
-                    </p>
-                    <p>
-                      <strong>Time:</strong>{" "}
-                      {bookingDetails.hour &&
-                            bookingDetails.minute
-                        ? `${bookingDetails.hour}:${bookingDetails.minute}`
-                        : "Not selected"}
-                    </p>
-                    {bookingDetails.service_type === "meetAndGreet" && (
-                      <>
-                        <p>
-                          <strong>Bags:</strong> {bookingDetails.bags}
-                        </p>
-                        <p>
-                          <strong>Buggy:</strong>{" "}
-                          {bookingDetails.wantBuggy ? "Yes" : "No"}
-                        </p>
-                        <p>
-                          <strong>Porter:</strong>{" "}
-                          {bookingDetails.wantPorter ? "Yes" : "No"}
-                        </p>
-                      </>
-                    )}
-                    {(bookingDetails.service_type === "airportTransfer" ||
-                      bookingDetails.service_type === "hourlyHire") && (
-                      <>
-                        <p>
-                          <strong>Bags:</strong> {bookingDetails.bags}
-                        </p>
-                      </>
-                    )}
-                    <div className="border-t pt-4 mt-4">
-                      <p className="text-lg font-semibold">
-                        <strong>Estimated Cost:</strong> £{calculateEstimatedCost().toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="lg:w-1/2 bg-gray-50 p-4 md:p-6 rounded-lg">
-                  <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-2">Complete Your Booking</h2>
-                  <p className="text-sm text-muted-foreground mb-4 md:mb-6">
-                    You can edit your journey details here, even if you came directly to this page.
-                  </p>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="rounded-lg border bg-white p-4 space-y-4">
-                      <h3 className="font-semibold">Journey Details</h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label>Service Type</Label>
-                          <select
-                            className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            value={bookingDetails.service_type}
-                            onChange={(e) =>
-                              setBookingDetails((prev) => ({
-                                ...prev,
-                                service_type: e.target.value as BookingDetails["service_type"],
-                                service_subtype: e.target.value === "meetAndGreet" ? prev.service_subtype || "arrival" : null,
-                                calculatedAmount: null,
-                              }))
-                            }
-                          >
-                            <option value="meetAndGreet">Meet and Greet</option>
-                            <option value="airportTransfer">Airport Transfer</option>
-                            <option value="hourlyHire">Hire by Hour</option>
-                          </select>
-                        </div>
-
-                        {bookingDetails.service_type === "meetAndGreet" ? (
-                          <div>
-                            <Label>Service Option</Label>
-                            <select
-                              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              value={bookingDetails.service_subtype || "arrival"}
-                              onChange={(e) =>
-                                setBookingDetails((prev) => ({
-                                  ...prev,
-                                  service_subtype: e.target.value as BookingDetails["service_subtype"],
-                                  calculatedAmount: null,
-                                }))
-                              }
-                            >
-                              <option value="arrival">Arrival</option>
-                              <option value="departure">Departure</option>
-                              <option value="connection">Connection</option>
-                            </select>
-                          </div>
-                        ) : (
-                          <div>
-                            <Label>Additional Hours</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={bookingDetails.additionalHours}
-                              onChange={(e) =>
-                                setBookingDetails((prev) => ({
-                                  ...prev,
-                                  additionalHours: Number(e.target.value || 0),
-                                  calculatedAmount: null,
-                                }))
-                              }
-                            />
-                          </div>
-                        )}
-                      </div>
-
+                  <div className="space-y-4 text-sm md:text-base">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label>Pickup Location</Label>
+                        <Label htmlFor="booking-service-type">Service Type</Label>
                         <select
-                          className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          value={bookingDetails.pickupLocationId || ""}
+                          id="booking-service-type"
+                          className={formControlClassName}
+                          value={bookingDetails.service_type}
                           onChange={(e) =>
                             setBookingDetails((prev) => ({
                               ...prev,
-                              pickupLocationId: e.target.value,
+                              service_type: e.target.value as BookingDetails["service_type"],
+                              service_subtype: e.target.value === "meetAndGreet" ? prev.service_subtype || "arrival" : null,
                               calculatedAmount: null,
                             }))
                           }
                         >
-                          <option value="">Select pickup location</option>
-                          {locations.map((loc) => (
-                            <option key={loc.id} value={loc.id}>
-                              {loc.name}
-                            </option>
-                          ))}
-                          <option value="other">Other</option>
+                          <option value="meetAndGreet">Meet and Greet</option>
+                          <option value="airportTransfer">Airport Transfer</option>
+                          <option value="hourlyHire">Hire by Hour</option>
                         </select>
                       </div>
 
-                      {bookingDetails.pickupLocationId === "other" && (
+                      {bookingDetails.service_type === "meetAndGreet" ? (
                         <div>
-                          <Label>Custom Pickup Address</Label>
-                          <Input
-                            value={bookingDetails.customPickupAddress}
-                            onChange={(e) =>
-                              setBookingDetails((prev) => ({
-                                ...prev,
-                                customPickupAddress: e.target.value,
-                                calculatedAmount: null,
-                              }))
-                            }
-                            placeholder="Enter the pickup address"
-                          />
-                        </div>
-                      )}
-
-                      {(bookingDetails.service_type === "airportTransfer" || bookingDetails.service_subtype === "connection") && (
-                        <>
-                          <div>
-                            <Label>Dropoff Location</Label>
-                            <select
-                              className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              value={bookingDetails.dropoffLocationId || ""}
-                              onChange={(e) =>
-                                setBookingDetails((prev) => ({
-                                  ...prev,
-                                  dropoffLocationId: e.target.value,
-                                  calculatedAmount: null,
-                                }))
-                              }
-                            >
-                              <option value="">Select dropoff location</option>
-                              {locations.map((loc) => (
-                                <option key={loc.id} value={loc.id}>
-                                  {loc.name}
-                                </option>
-                              ))}
-                              <option value="other">Other</option>
-                            </select>
-                          </div>
-
-                          {bookingDetails.dropoffLocationId === "other" && (
-                            <div>
-                              <Label>Custom Dropoff Address</Label>
-                              <Input
-                                value={bookingDetails.customDropoffAddress}
-                                onChange={(e) =>
-                                  setBookingDetails((prev) => ({
-                                    ...prev,
-                                    customDropoffAddress: e.target.value,
-                                    calculatedAmount: null,
-                                  }))
-                                }
-                                placeholder="Enter the dropoff address"
-                              />
-                            </div>
-                          )}
-                        </>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <Label>Date</Label>
-                          <Input
-                            type="date"
-                            value={bookingDateValue}
-                            onChange={(e) =>
-                              setBookingDetails((prev) => ({
-                                ...prev,
-                                date: e.target.value ? new Date(`${e.target.value}T12:00:00`) : undefined,
-                                calculatedAmount: null,
-                              }))
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label>Hour</Label>
+                          <Label htmlFor="booking-service-option">Service Option</Label>
                           <select
-                            className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            value={bookingDetails.hour}
+                            id="booking-service-option"
+                            className={formControlClassName}
+                            value={bookingDetails.service_subtype || "arrival"}
                             onChange={(e) =>
                               setBookingDetails((prev) => ({
                                 ...prev,
-                                hour: e.target.value,
+                                service_subtype: e.target.value as BookingDetails["service_subtype"],
                                 calculatedAmount: null,
                               }))
                             }
                           >
-                            {Array.from({ length: 24 }, (_, index) => {
-                              const value = String(index).padStart(2, "0");
-                              return (
-                                <option key={value} value={value}>
-                                  {value}
-                                </option>
-                              );
-                            })}
+                            <option value="arrival">Arrival</option>
+                            <option value="departure">Departure</option>
+                            <option value="connection">Connection</option>
                           </select>
                         </div>
+                      ) : (
                         <div>
-                          <Label>Minute</Label>
-                          <select
-                            className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            value={bookingDetails.minute}
-                            onChange={(e) =>
-                              setBookingDetails((prev) => ({
-                                ...prev,
-                                minute: e.target.value,
-                                calculatedAmount: null,
-                              }))
-                            }
-                          >
-                            {["00", "15", "30", "45"].map((value) => (
-                              <option key={value} value={value}>
-                                {value}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <Label>Passengers</Label>
+                          <Label htmlFor="booking-additional-hours-summary">Additional Hours</Label>
                           <Input
-                            type="number"
-                            min={1}
-                            value={bookingDetails.passengers}
-                            onChange={(e) =>
-                              setBookingDetails((prev) => ({
-                                ...prev,
-                                passengers: Number(e.target.value || 1),
-                                calculatedAmount: null,
-                              }))
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label>Bags</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={bookingDetails.bags}
-                            onChange={(e) =>
-                              setBookingDetails((prev) => ({
-                                ...prev,
-                                bags: Number(e.target.value || 0),
-                                calculatedAmount: null,
-                              }))
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label>Extra Hours</Label>
-                          <Input
+                            id="booking-additional-hours-summary"
                             type="number"
                             min={0}
                             value={bookingDetails.additionalHours}
@@ -844,40 +559,261 @@ function BookingContent() {
                             }
                           />
                         </div>
-                      </div>
-
-                      {bookingDetails.service_type === "meetAndGreet" && (
-                        <div className="flex flex-wrap gap-4 text-sm">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={bookingDetails.wantBuggy}
-                              onChange={(e) =>
-                                setBookingDetails((prev) => ({
-                                  ...prev,
-                                  wantBuggy: e.target.checked,
-                                  calculatedAmount: null,
-                                }))
-                              }
-                            />
-                            Need buggy service
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={bookingDetails.wantPorter}
-                              onChange={(e) =>
-                                setBookingDetails((prev) => ({
-                                  ...prev,
-                                  wantPorter: e.target.checked,
-                                  calculatedAmount: null,
-                                }))
-                              }
-                            />
-                            Need porter service
-                          </label>
-                        </div>
                       )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="booking-pickup-location">
+                        {bookingDetails.service_type === "meetAndGreet" ? "Meet up Location" : "Pickup Location"}
+                      </Label>
+                      <select
+                        id="booking-pickup-location"
+                        className={formControlClassName}
+                        value={bookingDetails.pickupLocationId || ""}
+                        onChange={(e) =>
+                          setBookingDetails((prev) => ({
+                            ...prev,
+                            pickupLocationId: e.target.value,
+                            calculatedAmount: null,
+                          }))
+                        }
+                      >
+                        <option value="">Select a location</option>
+                        {locations.map((loc) => (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.name}
+                          </option>
+                        ))}
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+
+                    {bookingDetails.pickupLocationId === "other" && (
+                      <div>
+                        <Label htmlFor="booking-custom-pickup">Custom Meet up Address</Label>
+                        <Input
+                          id="booking-custom-pickup"
+                          value={bookingDetails.customPickupAddress}
+                          onChange={(e) =>
+                            setBookingDetails((prev) => ({
+                              ...prev,
+                              customPickupAddress: e.target.value,
+                              calculatedAmount: null,
+                            }))
+                          }
+                          placeholder="Enter the meet up or pickup address"
+                        />
+                      </div>
+                    )}
+
+                    {(bookingDetails.service_type === "airportTransfer" || bookingDetails.service_subtype === "connection") && (
+                      <>
+                        <div>
+                          <Label htmlFor="booking-dropoff-location">Drop-off Location</Label>
+                          <select
+                            id="booking-dropoff-location"
+                            className={formControlClassName}
+                            value={bookingDetails.dropoffLocationId || ""}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                dropoffLocationId: e.target.value,
+                                calculatedAmount: null,
+                              }))
+                            }
+                          >
+                            <option value="">Select a location</option>
+                            {locations.map((loc) => (
+                              <option key={loc.id} value={loc.id}>
+                                {loc.name}
+                              </option>
+                            ))}
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+
+                        {bookingDetails.dropoffLocationId === "other" && (
+                          <div>
+                            <Label htmlFor="booking-custom-dropoff">Custom Drop-off Address</Label>
+                            <Input
+                              id="booking-custom-dropoff"
+                              value={bookingDetails.customDropoffAddress}
+                              onChange={(e) =>
+                                setBookingDetails((prev) => ({
+                                  ...prev,
+                                  customDropoffAddress: e.target.value,
+                                  calculatedAmount: null,
+                                }))
+                              }
+                              placeholder="Enter the drop-off address"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="booking-date">Date</Label>
+                        <Input
+                          id="booking-date"
+                          type="date"
+                          value={bookingDateValue}
+                          onChange={(e) =>
+                            setBookingDetails((prev) => ({
+                              ...prev,
+                              date: e.target.value ? new Date(`${e.target.value}T12:00:00`) : undefined,
+                              calculatedAmount: null,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="booking-hour">Hour</Label>
+                        <select
+                          id="booking-hour"
+                          className={formControlClassName}
+                          value={bookingDetails.hour}
+                          onChange={(e) =>
+                            setBookingDetails((prev) => ({
+                              ...prev,
+                              hour: e.target.value,
+                              calculatedAmount: null,
+                            }))
+                          }
+                        >
+                          {Array.from({ length: 24 }, (_, index) => {
+                            const value = String(index).padStart(2, "0");
+                            return (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="booking-minute">Minute</Label>
+                        <select
+                          id="booking-minute"
+                          className={formControlClassName}
+                          value={bookingDetails.minute}
+                          onChange={(e) =>
+                            setBookingDetails((prev) => ({
+                              ...prev,
+                              minute: e.target.value,
+                              calculatedAmount: null,
+                            }))
+                          }
+                        >
+                          {["00", "15", "30", "45"].map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="booking-passengers">Passengers</Label>
+                        <Input
+                          id="booking-passengers"
+                          type="number"
+                          min={1}
+                          value={bookingDetails.passengers}
+                          onChange={(e) =>
+                            setBookingDetails((prev) => ({
+                              ...prev,
+                              passengers: Number(e.target.value || 1),
+                              calculatedAmount: null,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="booking-bags">Bags</Label>
+                        <Input
+                          id="booking-bags"
+                          type="number"
+                          min={0}
+                          value={bookingDetails.bags}
+                          onChange={(e) =>
+                            setBookingDetails((prev) => ({
+                              ...prev,
+                              bags: Number(e.target.value || 0),
+                              calculatedAmount: null,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="booking-extra-hours">Extra Hours</Label>
+                        <Input
+                          id="booking-extra-hours"
+                          type="number"
+                          min={0}
+                          value={bookingDetails.additionalHours}
+                          onChange={(e) =>
+                            setBookingDetails((prev) => ({
+                              ...prev,
+                              additionalHours: Number(e.target.value || 0),
+                              calculatedAmount: null,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {bookingDetails.service_type === "meetAndGreet" && (
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={bookingDetails.wantBuggy}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                wantBuggy: e.target.checked,
+                                calculatedAmount: null,
+                              }))
+                            }
+                          />
+                          Need buggy service
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={bookingDetails.wantPorter}
+                            onChange={(e) =>
+                              setBookingDetails((prev) => ({
+                                ...prev,
+                                wantPorter: e.target.checked,
+                                calculatedAmount: null,
+                              }))
+                            }
+                          />
+                          Need porter service
+                        </label>
+                      </div>
+                    )}
+
+                    <div className="border-t pt-4 mt-4">
+                      <p className="text-lg font-semibold">
+                        <strong>Estimated Cost:</strong> £{calculateEstimatedCost().toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="lg:w-1/2 bg-gray-50 p-4 md:p-6 rounded-lg">
+                  <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-2">Complete Your Booking</h2>
+                  <p className="text-sm text-muted-foreground mb-4 md:mb-6">
+                    Your trip details are now editable in the Booking Summary panel.
+                  </p>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="rounded-lg border bg-white p-4 text-sm text-muted-foreground">
+                      Review the summary on the left, then finish the passenger and contact details here.
                     </div>
 
                     {bookingDetails.service_type === "meetAndGreet" && (

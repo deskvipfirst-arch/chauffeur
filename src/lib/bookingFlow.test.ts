@@ -17,6 +17,15 @@ describe("booking flow helpers", () => {
     expect(draft.service_type).toBe("meetAndGreet");
   });
 
+  it("uses a custom meet-up address when older drafts only store plain location text", () => {
+    const draft = buildBookingDraft({
+      meetUpLocation: "Heathrow Airport Terminal 2",
+    });
+
+    expect(draft.pickupLocationId).toBe("other");
+    expect(draft.customPickupAddress).toBe("Heathrow Airport Terminal 2");
+  });
+
   it("splits a single full name into signup fields", () => {
     expect(splitFullName("Jane Mary Smith")).toEqual({
       firstName: "Jane",

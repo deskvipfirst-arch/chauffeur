@@ -4,6 +4,9 @@ export const BOOKING_DRAFT_STORAGE_KEY = "bookingDraft";
 export type BookingDraft = {
   pickupLocationId?: string | null;
   dropoffLocationId?: string | null;
+  pickupLocation?: string | null;
+  meetUpLocation?: string | null;
+  dropoffLocation?: string | null;
   customPickupAddress?: string;
   customDropoffAddress?: string;
   date?: string | Date;
@@ -31,14 +34,21 @@ export type BookingDraft = {
 };
 
 export function buildBookingDraft(input: Partial<BookingDraft> = {}): BookingDraft {
+  const fallbackPickup = String(input.customPickupAddress ?? input.meetUpLocation ?? input.pickupLocation ?? "").trim();
+  const fallbackDropoff = String(input.customDropoffAddress ?? input.dropoffLocation ?? "").trim();
+  const pickupLocationId = input.pickupLocationId ?? (fallbackPickup ? "other" : null);
+  const dropoffLocationId = input.dropoffLocationId ?? (fallbackDropoff ? "other" : null);
+
   return {
     ...input,
+    pickupLocationId,
+    dropoffLocationId,
     fullName: String(input.fullName ?? "").trim(),
     email: String(input.email ?? "").trim(),
     phone: String(input.phone ?? "").trim(),
     additionalRequests: String(input.additionalRequests ?? "").trim(),
-    customPickupAddress: String(input.customPickupAddress ?? "").trim(),
-    customDropoffAddress: String(input.customDropoffAddress ?? "").trim(),
+    customPickupAddress: fallbackPickup,
+    customDropoffAddress: fallbackDropoff,
     hour: String(input.hour ?? "14"),
     minute: String(input.minute ?? "00"),
     period: String(input.period ?? "pm"),
