@@ -1,6 +1,6 @@
-import { db } from "@/lib/supabase";
+import { db, getAccessToken } from "@/lib/supabase";
 import { collection, getDocs, query, orderBy } from "@/lib/supabase-db";
-import { Vehicle, Booking, Driver, DriverPayment, Location, ServicePricing, ExtraCharge } from "@/types/admin";
+import { Vehicle, Booking, Driver, DriverPayment, Location, ServicePricing, ExtraCharge, GreeterInvoice } from "@/types/admin";
 
 type FetchResult<T> = {
   data: T[] | null;
@@ -49,7 +49,11 @@ export const fetchVehicles = async (): Promise<FetchResult<Vehicle>> => {
 export const fetchBookings = async (): Promise<FetchResult<Booking>> => {
   let isLoading = true;
   try {
-    const response = await fetch("/api/admin/bookings", { cache: "no-store" });
+    const token = await getAccessToken();
+    const response = await fetch("/api/admin/bookings", {
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
     if (!response.ok) {
       throw new Error("Failed to load bookings");
     }
@@ -107,7 +111,11 @@ export const fetchBookings = async (): Promise<FetchResult<Booking>> => {
 export const fetchDrivers = async (): Promise<FetchResult<Driver>> => {
   let isLoading = true;
   try {
-    const response = await fetch("/api/admin/drivers", { cache: "no-store" });
+    const token = await getAccessToken();
+    const response = await fetch("/api/admin/drivers", {
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
     if (!response.ok) {
       throw new Error("Failed to load drivers");
     }
@@ -158,6 +166,30 @@ export const fetchDriverPayments = async (): Promise<FetchResult<DriverPayment>>
     console.error("Error fetching driver payments:", err);
     isLoading = false;
     return { data: null, error: err instanceof Error ? err.message : "Failed to load driver payments", isLoading };
+  }
+};
+
+export const fetchGreeterInvoices = async (): Promise<FetchResult<GreeterInvoice>> => {
+  let isLoading = true;
+  try {
+    const token = await getAccessToken();
+    const response = await fetch("/api/admin/invoices", {
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to load greeter invoices");
+    }
+
+    const payload = await response.json();
+    const data = Array.isArray(payload) ? payload : [];
+    isLoading = false;
+    return { data, error: null, isLoading };
+  } catch (err: unknown) {
+    console.error("Error fetching greeter invoices:", err);
+    isLoading = false;
+    return { data: null, error: err instanceof Error ? err.message : "Failed to load greeter invoices", isLoading };
   }
 };
 

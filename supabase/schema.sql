@@ -20,6 +20,20 @@ create table if not exists public.profiles (
   updatedAt timestamptz default now()
 );
 
+do $$ begin
+  alter table public.users drop constraint if exists users_role_check;
+  alter table public.users
+    add constraint users_role_check
+    check (lower(role) in ('user', 'admin', 'greeter', 'driver', 'office', 'administrator'));
+exception when undefined_table then null; end $$;
+
+do $$ begin
+  alter table public.profiles drop constraint if exists profiles_role_check;
+  alter table public.profiles
+    add constraint profiles_role_check
+    check (lower(coalesce(role, 'user')) in ('user', 'admin', 'greeter', 'driver', 'office', 'administrator'));
+exception when undefined_table then null; end $$;
+
 create table if not exists public.locations (
   id text primary key,
   name text not null,
@@ -141,6 +155,40 @@ create table if not exists public.driverPayments (
   createdAt timestamptz default now()
 );
 
+create table if not exists public.greeter_invoices (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid references public.bookings(id) on delete set null,
+  booking_ref text,
+  greeter_id uuid references public.drivers(id) on delete set null,
+  greeter_email text not null,
+  amount numeric default 0,
+  notes text,
+  office_status text default 'submitted',
+  office_notes text,
+  submitted_at timestamptz default now(),
+  reviewed_at timestamptz,
+  reviewed_by text,
+  processed_at timestamptz,
+  payment_reference text
+);
+
+alter table public.greeter_invoices add column if not exists booking_id uuid;
+alter table public.greeter_invoices add column if not exists booking_ref text;
+alter table public.greeter_invoices add column if not exists greeter_id uuid;
+alter table public.greeter_invoices add column if not exists greeter_email text;
+alter table public.greeter_invoices add column if not exists amount numeric default 0;
+alter table public.greeter_invoices add column if not exists notes text;
+alter table public.greeter_invoices add column if not exists office_status text default 'submitted';
+alter table public.greeter_invoices add column if not exists office_notes text;
+alter table public.greeter_invoices add column if not exists submitted_at timestamptz default now();
+alter table public.greeter_invoices add column if not exists reviewed_at timestamptz;
+alter table public.greeter_invoices add column if not exists reviewed_by text;
+alter table public.greeter_invoices add column if not exists processed_at timestamptz;
+alter table public.greeter_invoices add column if not exists payment_reference text;
+
+create unique index if not exists greeter_invoices_booking_email_key
+  on public.greeter_invoices (booking_id, greeter_email);
+
 do $$ begin
   alter table public.bookings
     add constraint bookings_driver_id_fkey
@@ -156,6 +204,7 @@ alter table public.extra_charges enable row level security;
 alter table public.bookings enable row level security;
 alter table public.drivers enable row level security;
 alter table public.driverPayments enable row level security;
+alter table public.greeter_invoices enable row level security;
 
 do $$ begin
   create policy "public read locations" on public.locations for select using (true);
@@ -195,6 +244,16 @@ exception when duplicate_object then null; end $$;
 
 do $$ begin
   create policy "users can update own bookings" on public.bookings for update using (auth.uid() = user_id or user_id is null);
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "greeters can read own invoices" on public.greeter_invoices for select
+  using (lower(greeter_email) = lower(coalesce(auth.jwt() ->> 'email', '')));
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "greeters can insert own invoices" on public.greeter_invoices for insert
+  with check (lower(greeter_email) = lower(coalesce(auth.jwt() ->> 'email', '')));
 exception when duplicate_object then null; end $$;
 
 insert into storage.buckets (id, name, public)

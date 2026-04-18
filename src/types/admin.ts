@@ -82,6 +82,25 @@ export type DriverPayment = {
   payment_method: string;
 };
 
+export type GreeterInvoiceStatus = "submitted" | "under_review" | "approved" | "rejected" | "paid";
+
+export type GreeterInvoice = {
+  id: string;
+  booking_id: string;
+  booking_ref?: string | null;
+  greeter_id?: string | null;
+  greeter_email: string;
+  amount: number;
+  notes?: string | null;
+  office_status: GreeterInvoiceStatus;
+  office_notes?: string | null;
+  submitted_at: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  processed_at?: string | null;
+  payment_reference?: string | null;
+};
+
 export interface Location {
   id: number;
   name: string;

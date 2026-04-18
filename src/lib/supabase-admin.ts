@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { ExtraCharge, Location, ServiceRate, Vehicle, BookingData, UserData } from "./types";
 import { COLLECTIONS } from "./types";
+import { canonicalizeUserRole, isAllowedRole } from "./roles";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const serviceRoleKey =
@@ -9,12 +10,23 @@ const serviceRoleKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   "placeholder-service-role-key";
 
+const GREETER_INVOICES_TABLE = "greeter_invoices";
+
 export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
   },
 });
+
+function getBearerToken(authHeader: string | null) {
+  if (!authHeader) return "";
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return "";
+  }
+  return token.trim();
+}
 
 function createSnapshot(rows: any[]) {
   const docs = rows.map((row) => ({
@@ -306,4 +318,141 @@ export async function getUserProfile(userId: string) {
   const { data, error } = await supabaseAdmin.from(COLLECTIONS.USERS).select("*").eq("id", userId).maybeSingle();
   if (error) throw error;
   return data ? { id: String(data.id), ...data } : null;
+}
+
+export async function requireAuthorizedUser(authHeader: string | null, allowedRoles: string[] = []) {
+  const token = getBearerToken(authHeader);
+  if (!token) {
+    throw new Error("Missing authorization token");
+  }
+
+  const {
+    data: { user },
+    error,
+  } = await supabaseAdmin.auth.getUser(token);
+
+  if (error || !user) {
+    throw new Error("Invalid authorization token");
+  }
+
+  const profile = await getUserProfile(user.id);
+  const role = canonicalizeUserRole(profile?.role || "user");
+  const email = String(user.email || "").trim().toLowerCase();
+
+  if (!isAllowedRole(role, allowedRoles)) {
+    throw new Error("Forbidden");
+  }
+
+  return { user, role, email };
+}
+
+export async function getGreeterInvoices(email?: string) {
+  let builder: any = supabaseAdmin
+    .from(GREETER_INVOICES_TABLE)
+    .select("*")
+    .order("submitted_at", { ascending: false });
+
+  if (email) {
+    builder = builder.eq("greeter_email", email.trim().toLowerCase());
+  }
+
+  const { data, error } = await builder;
+  if (error) {
+    if (isMissingTableError(error)) {
+      return [];
+    }
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function createGreeterInvoice(input: {
+  bookingId: string;
+  email: string;
+  amount: number;
+  notes?: string | null;
+}) {
+  const email = input.email.trim().toLowerCase();
+  const booking = await getBooking(input.bookingId);
+
+  if (!booking) {
+    throw new Error("Booking not found");
+  }
+
+  const driver = await getDriverByEmail(email);
+  if (!driver) {
+    throw new Error("Greeter profile not found");
+  }
+
+  if (booking.driver_id && String(booking.driver_id) !== String(driver.id)) {
+    throw new Error("This booking is not assigned to the current greeter");
+  }
+
+  const lifecycleStatus = String(booking.driver_status || booking.status || "");
+  if (lifecycleStatus !== "completed") {
+    throw new Error("Complete the job before submitting an invoice");
+  }
+
+  const payload = {
+    booking_id: booking.id,
+    booking_ref: booking.booking_ref || null,
+    greeter_id: driver.id,
+    greeter_email: email,
+    amount: Number(input.amount || 0),
+    notes: input.notes?.trim() || null,
+    office_status: "submitted",
+    submitted_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from(GREETER_INVOICES_TABLE)
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("An invoice has already been submitted for this booking");
+    }
+    if (isMissingTableError(error)) {
+      throw new Error("Greeter invoices table is missing. Apply the latest schema.");
+    }
+    throw error;
+  }
+
+  return data;
+}
+
+export async function reviewGreeterInvoice(id: string, updates: Record<string, any>) {
+  const now = new Date().toISOString();
+  const nextStatus = String(updates.office_status || "");
+  const payload = {
+    ...updates,
+  };
+
+  if (["under_review", "approved", "rejected", "paid"].includes(nextStatus)) {
+    payload.reviewed_at = now;
+    payload.reviewed_by = updates.reviewed_by || "office";
+  }
+
+  if (nextStatus === "paid") {
+    payload.processed_at = now;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from(GREETER_INVOICES_TABLE)
+    .update(payload)
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      throw new Error("Greeter invoices table is missing. Apply the latest schema.");
+    }
+    throw error;
+  }
+
+  return data;
 }

@@ -1,6 +1,7 @@
 import { auth, db } from "@/lib/supabase";
 import { createUserWithEmailAndPassword } from "@/lib/supabase-auth";
 import { doc, setDoc, getDoc } from "@/lib/supabase-db";
+import { canonicalizeUserRole, isAllowedRole } from "./roles";
 
 export async function createAdminUser(email: string, password: string) {
   try {
@@ -23,11 +24,13 @@ export async function createAdminUser(email: string, password: string) {
   }
 }
 
+export { canonicalizeUserRole, isAllowedRole } from "./roles";
+
 export async function getUserRole(userId: string) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
     if (!userDoc.exists()) return null;
-    return userDoc.data().role || null;
+    return canonicalizeUserRole(userDoc.data().role || null);
   } catch (error) {
     console.error("Error checking user role:", error);
     return null;
@@ -36,12 +39,12 @@ export async function getUserRole(userId: string) {
 
 export async function isAdminUser(userId: string) {
   const role = await getUserRole(userId);
-  return role === "admin";
+  return isAllowedRole(role, ["admin"]);
 }
 
 export async function isGreeterUser(userId: string) {
   const role = await getUserRole(userId);
-  return role === "greeter" || role === "admin";
+  return isAllowedRole(role, ["greeter", "admin"]);
 }
 
 // Function to create the first admin user

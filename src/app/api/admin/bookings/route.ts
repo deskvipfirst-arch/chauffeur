@@ -1,12 +1,14 @@
-import { NextResponse } from "next/server";
-import { getBookings } from "@/lib/supabase-admin";
+import { NextRequest, NextResponse } from "next/server";
+import { getBookings, requireAuthorizedUser } from "@/lib/supabase-admin";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    await requireAuthorizedUser(request.headers.get("authorization"), ["admin"]);
     const bookings = await getBookings();
     return NextResponse.json(bookings);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to fetch bookings";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message === "Forbidden" ? 403 : message.includes("authorization") ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

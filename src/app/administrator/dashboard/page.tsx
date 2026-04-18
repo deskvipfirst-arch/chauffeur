@@ -11,11 +11,12 @@ import {
   fetchBookings,
   fetchDrivers,
   fetchDriverPayments,
+  fetchGreeterInvoices,
   fetchLocations,
   fetchServicePricing,
   fetchExtraCharges,
 } from "@/lib/adminFetch";
-import { Vehicle, Booking, Driver, DriverPayment } from "@/types/admin";
+import { Vehicle, Booking, Driver, DriverPayment, GreeterInvoice } from "@/types/admin";
 import {
   Sidebar,
   SidebarContent,
@@ -26,7 +27,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ChevronLeft, ChevronRight, Car, Calendar, DollarSign, FileText, Settings, User, LogOut, Shield, Key } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { auth } from "@/lib/supabase";
+import { auth, getAccessToken } from "@/lib/supabase";
 import { onAuthStateChanged } from "@/lib/supabase-auth";
 import { useRouter } from "next/navigation";
 import { isAdminUser } from "@/lib/adminUtils";
@@ -44,7 +45,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
 import { filterHeathrowBookings, getMonitoringPriority } from "@/lib/heathrowMonitoring";
-import { buildAssignmentNotification, buildGreeterStatusNotification } from "@/lib/notifications";
+import { buildAssignmentNotification, buildGreeterStatusNotification, buildOperationsAlerts } from "@/lib/notifications";
 import { getPrimaryFlightNumber } from "@/lib/flightStatus";
 
 export default function AdminDashboard() {
@@ -75,6 +76,7 @@ export default function AdminDashboard() {
   const [driverPayments, setDriverPayments] = useState<DriverPayment[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(true);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [greeterInvoices, setGreeterInvoices] = useState<GreeterInvoice[]>([]);
   const [flightStatuses, setFlightStatuses] = useState<Record<string, { status: string; terminal: string | null; source: string }>>({});
 
   const refreshDashboardData = async () => {
@@ -96,6 +98,9 @@ export default function AdminDashboard() {
         setDriverPayments(data || []);
         setPaymentError(error);
         setIsLoadingPayments(isLoading);
+      }),
+      fetchGreeterInvoices().then(({ data }) => {
+        setGreeterInvoices(data || []);
       }),
     ]);
   };
@@ -159,9 +164,13 @@ export default function AdminDashboard() {
   };
 
   const handleUpdateBookingStatus = async (bookingId: string, newStatus: string) => {
+    const token = await getAccessToken();
     const response = await fetch(`/api/admin/bookings/${bookingId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ status: newStatus }),
     });
 
@@ -177,9 +186,13 @@ export default function AdminDashboard() {
 
   const handleAssignDriver = async (bookingId: string, value: string) => {
     const isUnassign = value === "unassign";
+    const token = await getAccessToken();
     const response = await fetch(`/api/admin/bookings/${bookingId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(
         isUnassign
           ? {
@@ -212,9 +225,13 @@ export default function AdminDashboard() {
   };
 
   const handleMarkBookingCompleted = async (bookingId: string) => {
+    const token = await getAccessToken();
     const response = await fetch(`/api/admin/bookings/${bookingId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({
         status: "completed",
         driver_status: "completed",
@@ -328,13 +345,25 @@ export default function AdminDashboard() {
 
   // Calculate stats
   const totalBookings = bookings.length;
-  const websiteVisitors = 1500; // Placeholder, replace with real data
-  const meetAndGreetBookings = bookings.filter((b) => b.service_type === "meetAndGreet").length;
-  const airportTransferBookings = bookings.filter((b) => b.service_type === "airportTransfer").length;
-  const hourlyHireBookings = bookings.filter((b) => b.service_type === "hourlyHire").length;
+  const normalizeServiceType = (value?: string) => String(value || "").toLowerCase();
+  const meetAndGreetBookings = bookings.filter((b) => {
+    const type = normalizeServiceType(b.service_type);
+    return type.includes("meet") || type.includes("assist");
+  }).length;
+  const airportTransferBookings = bookings.filter((b) => {
+    const type = normalizeServiceType(b.service_type);
+    return type.includes("airport") || type.includes("transfer");
+  }).length;
+  const hourlyHireBookings = bookings.filter((b) => {
+    const type = normalizeServiceType(b.service_type);
+    return type.includes("hour");
+  }).length;
   const totalRevenue = bookings.reduce((sum, b) => sum + (b.amount || 0), 0);
   const activeDrivers = drivers.filter((d) => d.status === "active").length;
+  const activeJobs = bookings.filter((b) => ["assigned", "accepted", "picked_up"].includes(String(b.driver_status || b.status))).length;
+  const completedJobs = bookings.filter((b) => String(b.driver_status || b.status) === "completed").length;
   const heathrowBookings = filterHeathrowBookings(bookings);
+  const officeAlerts = buildOperationsAlerts({ bookings, invoices: greeterInvoices });
 
   return (
     <SidebarProvider>
@@ -485,8 +514,8 @@ export default function AdminDashboard() {
                     <p className="text-2xl font-bold text-gray-900">{totalBookings}</p>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Website Visitors</h3>
-                    <p className="text-2xl font-bold text-gray-900">{websiteVisitors}</p>
+                    <h3 className="text-sm font-medium text-gray-500">Active Jobs</h3>
+                    <p className="text-2xl font-bold text-gray-900">{activeJobs}</p>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow-md">
                     <h3 className="text-sm font-medium text-gray-500">Meet & Greet Bookings</h3>
@@ -507,6 +536,37 @@ export default function AdminDashboard() {
                   <div className="bg-white p-4 rounded-lg shadow-md">
                     <h3 className="text-sm font-medium text-gray-500">Active Drivers</h3>
                     <p className="text-2xl font-bold text-gray-900">{activeDrivers}</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-sm font-medium text-gray-500">Completed Jobs</h3>
+                    <p className="text-2xl font-bold text-gray-900">{completedJobs}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-4 border-b">
+                    <h3 className="text-lg font-semibold text-gray-900">Office Alerts</h3>
+                    <p className="text-sm text-gray-500">Live signals that need attention from dispatch or finance.</p>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {officeAlerts.length === 0 ? (
+                      <p className="text-sm text-gray-500">No immediate office alerts.</p>
+                    ) : (
+                      officeAlerts.map((alert, index) => (
+                        <div
+                          key={`${alert.title}-${index}`}
+                          className={cn(
+                            "rounded-md border px-4 py-3",
+                            alert.level === "warning" && "border-amber-200 bg-amber-50 text-amber-900",
+                            alert.level === "success" && "border-emerald-200 bg-emerald-50 text-emerald-900",
+                            alert.level === "info" && "border-blue-200 bg-blue-50 text-blue-900"
+                          )}
+                        >
+                          <p className="font-semibold">{alert.title}</p>
+                          <p className="text-sm">{alert.message}</p>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 

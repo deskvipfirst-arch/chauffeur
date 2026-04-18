@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBookingsForDriverEmail } from "@/lib/supabase-admin";
+import { getBookingsForDriverEmail, requireAuthorizedUser } from "@/lib/supabase-admin";
 
 export async function GET(request: NextRequest) {
   try {
-    const email = request.nextUrl.searchParams.get("email");
-    if (!email) {
+    const auth = await requireAuthorizedUser(request.headers.get("authorization"), ["greeter", "admin"]);
+    const requestedEmail = String(request.nextUrl.searchParams.get("email") || "").trim().toLowerCase();
+    const effectiveEmail = auth.role === "admin" ? requestedEmail || auth.email : auth.email;
+
+    if (!effectiveEmail) {
       return NextResponse.json([], { status: 200 });
     }
 
-    const jobs = await getBookingsForDriverEmail(email);
+    if (auth.role !== "admin" && requestedEmail && requestedEmail !== auth.email) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const jobs = await getBookingsForDriverEmail(effectiveEmail);
     return NextResponse.json(jobs);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to fetch greeter jobs";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message === "Forbidden" ? 403 : message.includes("authorization") ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

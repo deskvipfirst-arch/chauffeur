@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDriverByEmail, updateBooking } from "@/lib/supabase-admin";
+import { getDriverByEmail, requireAuthorizedUser, updateBooking } from "@/lib/supabase-admin";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuthorizedUser(request.headers.get("authorization"), ["greeter", "admin"]);
     const body = await request.json();
-    const email = String(body.email || "");
+    const email = String(body.email || "").trim().toLowerCase();
     const action = String(body.action || "");
 
     if (!email || !action) {
       return NextResponse.json({ error: "Email and action are required" }, { status: 400 });
+    }
+
+    if (auth.role !== "admin" && email !== auth.email) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const driver = await getDriverByEmail(email);
@@ -39,6 +44,7 @@ export async function PUT(
     return NextResponse.json(updated);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to update greeter job";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message === "Forbidden" ? 403 : message.includes("authorization") ? 401 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

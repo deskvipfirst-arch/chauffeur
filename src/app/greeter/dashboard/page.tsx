@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/supabase";
+import { auth, getAccessToken } from "@/lib/supabase";
 import { onAuthStateChanged } from "@/lib/supabase-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import { isGreeterUser } from "@/lib/adminUtils";
 import { buildUnauthorizedNotification } from "@/lib/notifications";
 import { getPrimaryFlightNumber } from "@/lib/flightStatus";
+import { canGreeterSubmitInvoice, getInvoiceStatusLabel } from "@/lib/invoiceWorkflow";
+import type { GreeterInvoice } from "@/types/admin";
 
 export default function GreeterDashboardPage() {
   const router = useRouter();
@@ -23,7 +25,10 @@ export default function GreeterDashboardPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [flightStatuses, setFlightStatuses] = useState<Record<string, { status: string; terminal: string | null; source: string }>>({});
+  const [invoicesByBooking, setInvoicesByBooking] = useState<Record<string, GreeterInvoice>>({});
+  const [invoiceDrafts, setInvoiceDrafts] = useState<Record<string, { amount: string; notes: string }>>({});
 
   const loadJobs = useCallback(async (email?: string | null) => {
     if (!email) {
@@ -33,8 +38,10 @@ export default function GreeterDashboardPage() {
     }
 
     try {
+      const token = await getAccessToken();
       const response = await fetch(`/api/greeter/jobs?email=${encodeURIComponent(email)}`, {
         cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       const payload = response.ok ? await response.json() : [];
       setJobs(Array.isArray(payload) ? payload : []);
@@ -42,6 +49,28 @@ export default function GreeterDashboardPage() {
       setJobs([]);
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  const loadInvoices = useCallback(async (email?: string | null) => {
+    if (!email) {
+      setInvoicesByBooking({});
+      return;
+    }
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`/api/greeter/invoices?email=${encodeURIComponent(email)}`, {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const payload = response.ok ? await response.json() : [];
+      const invoices = Array.isArray(payload) ? payload : [];
+      setInvoicesByBooking(
+        Object.fromEntries(invoices.map((invoice) => [String(invoice.booking_id), invoice as GreeterInvoice]))
+      );
+    } catch {
+      setInvoicesByBooking({});
     }
   }, []);
 
@@ -61,19 +90,21 @@ export default function GreeterDashboardPage() {
         return;
       }
 
-      loadJobs(nextUser.email);
+      await Promise.all([loadJobs(nextUser.email), loadInvoices(nextUser.email)]);
     });
 
     return () => unsubscribe();
-  }, [loadJobs, router]);
+  }, [loadInvoices, loadJobs, router]);
 
   useEffect(() => {
     if (!user?.email) return;
 
-    const stopPolling = createPollingInterval(() => loadJobs(user.email), 10000);
+    const stopPolling = createPollingInterval(() => {
+      void Promise.all([loadJobs(user.email), loadInvoices(user.email)]);
+    }, 10000);
     const onVisibilityChange = () => {
       if (shouldRefreshOnVisibility(document.visibilityState)) {
-        void loadJobs(user.email);
+        void Promise.all([loadJobs(user.email), loadInvoices(user.email)]);
       }
     };
 
@@ -83,7 +114,7 @@ export default function GreeterDashboardPage() {
       stopPolling();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [loadJobs, user?.email]);
+  }, [loadInvoices, loadJobs, user?.email]);
 
   useEffect(() => {
     const loadFlightStatuses = async () => {
@@ -116,10 +147,12 @@ export default function GreeterDashboardPage() {
 
     try {
       setActiveJobId(jobId);
+      const token = await getAccessToken();
       const response = await fetch(`/api/greeter/jobs/${jobId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ email: user.email, action }),
       });
@@ -133,6 +166,53 @@ export default function GreeterDashboardPage() {
       await loadJobs(user.email);
     } finally {
       setActiveJobId(null);
+    }
+  };
+
+  const handleSubmitInvoice = async (job: any) => {
+    if (!user?.email) return;
+
+    const draft = invoiceDrafts[job.id] || {
+      amount: job.amount ? String(job.amount) : "",
+      notes: "",
+    };
+
+    const amount = Number(draft.amount);
+    if (!amount || Number.isNaN(amount) || amount <= 0) {
+      toast.error("Enter a valid invoice amount");
+      return;
+    }
+
+    try {
+      setSubmittingInvoiceId(job.id);
+      const token = await getAccessToken();
+      const response = await fetch("/api/greeter/invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email: user.email,
+          bookingId: job.id,
+          amount,
+          notes: draft.notes,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        toast.error(result?.error || "Failed to submit invoice");
+        return;
+      }
+
+      setInvoicesByBooking((current) => ({
+        ...current,
+        [job.id]: result,
+      }));
+      toast.success("Invoice submitted to office for review");
+    } finally {
+      setSubmittingInvoiceId(null);
     }
   };
 
@@ -210,6 +290,68 @@ export default function GreeterDashboardPage() {
                     ) : (
                       <p className="pt-2 font-medium text-emerald-700">This job has been completed.</p>
                     )}
+
+                    {(() => {
+                      const invoice = invoicesByBooking[job.id];
+                      const canSubmit = canGreeterSubmitInvoice(currentStatus, Boolean(invoice));
+                      const draft = invoiceDrafts[job.id] || {
+                        amount: job.amount ? String(job.amount) : "",
+                        notes: "",
+                      };
+
+                      if (invoice) {
+                        return (
+                          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                            <p className="font-semibold text-emerald-800">
+                              Invoice {getInvoiceStatusLabel(invoice.office_status)} · £{Number(invoice.amount || 0).toFixed(2)}
+                            </p>
+                            {invoice.notes ? <p className="mt-1 text-xs text-emerald-700">{invoice.notes}</p> : null}
+                          </div>
+                        );
+                      }
+
+                      if (!canSubmit) {
+                        return null;
+                      }
+
+                      return (
+                        <div className="rounded-md border border-slate-200 p-3 space-y-2">
+                          <p className="font-semibold text-slate-900">Submit invoice to office</p>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="w-full rounded-md border border-slate-300 px-3 py-2"
+                            value={draft.amount}
+                            onChange={(event) =>
+                              setInvoiceDrafts((current) => ({
+                                ...current,
+                                [job.id]: { amount: event.target.value, notes: draft.notes },
+                              }))
+                            }
+                            placeholder="Invoice amount"
+                          />
+                          <textarea
+                            rows={3}
+                            className="w-full rounded-md border border-slate-300 px-3 py-2"
+                            value={draft.notes}
+                            onChange={(event) =>
+                              setInvoiceDrafts((current) => ({
+                                ...current,
+                                [job.id]: { amount: draft.amount, notes: event.target.value },
+                              }))
+                            }
+                            placeholder="Optional notes for office review"
+                          />
+                          <Button
+                            onClick={() => handleSubmitInvoice(job)}
+                            disabled={submittingInvoiceId === job.id}
+                          >
+                            {submittingInvoiceId === job.id ? "Submitting..." : "Submit invoice"}
+                          </Button>
+                        </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               );
