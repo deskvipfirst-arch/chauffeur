@@ -7,6 +7,7 @@ import {
   buildBookingConfirmationEmail,
   buildOfficeBookingNotificationEmail,
   canSendTransactionalEmail,
+  getOfficeNotificationRecipients,
   sendTransactionalEmail,
 } from "@/lib/email";
 import {
@@ -14,6 +15,7 @@ import {
   isLegacyBookingStatusConstraintError,
   isStripeSessionPaid,
 } from "@/lib/stripePaymentStatus";
+import { getOfficeNotificationEmailSetting } from "@/lib/supabase-admin";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -127,7 +129,8 @@ export async function POST(req: Request) {
           amount: Number(bookingData.amount || (session.amount_total || 0) / 100 || 0),
         });
 
-        const opsRecipient = process.env.BOOKING_NOTIFICATION_EMAIL || process.env.CONTACT_EMAIL;
+        const storedOfficeEmail = await getOfficeNotificationEmailSetting();
+        const officeRecipients = getOfficeNotificationRecipients({ bookingNotificationEmail: storedOfficeEmail ?? undefined });
         const deliveries = [
           customerEmail && (bookingData.email || session.customer_details?.email)
             ? sendTransactionalEmail({
@@ -137,9 +140,9 @@ export async function POST(req: Request) {
                 html: customerEmail.html,
               })
             : Promise.resolve(null),
-          opsRecipient
+          officeRecipients.length > 0
             ? sendTransactionalEmail({
-                to: opsRecipient,
+                to: officeRecipients,
                 subject: officeEmail.subject,
                 text: officeEmail.text,
                 html: officeEmail.html,

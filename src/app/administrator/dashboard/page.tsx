@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 // import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
@@ -62,10 +63,13 @@ export default function AdminDashboard() {
     configured: boolean;
     fromEmail: string | null;
     officeDestination: string | null;
+    officeDestinationValue?: string;
     missing: string[];
   } | null>(null);
   const [isEmailStatusLoading, setIsEmailStatusLoading] = useState(true);
   const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
+  const [officeInboxInput, setOfficeInboxInput] = useState("");
+  const [isSavingOfficeInbox, setIsSavingOfficeInbox] = useState(false);
   const router = useRouter();
 
   // State for vehicles
@@ -99,6 +103,7 @@ export default function AdminDashboard() {
 
       if (response.ok && result?.email) {
         setEmailStatus(result.email);
+        setOfficeInboxInput(String(result.email.officeDestinationValue || ""));
       } else {
         setEmailStatus(null);
       }
@@ -345,6 +350,38 @@ export default function AdminDashboard() {
       toast.error("Failed to send test email");
     } finally {
       setIsSendingEmailTest(false);
+    }
+  };
+
+  const handleSaveOfficeInbox = async () => {
+    try {
+      setIsSavingOfficeInbox(true);
+      const token = await getAccessToken();
+      const response = await fetch("/api/admin/email", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ officeInbox: officeInboxInput }),
+      });
+
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast.error(result?.error || "Failed to update office inbox");
+        return;
+      }
+
+      if (result?.email) {
+        setEmailStatus(result.email);
+        setOfficeInboxInput(String(result.email.officeDestinationValue || officeInboxInput));
+      }
+
+      toast.success(result?.message || "Office inbox updated");
+    } catch {
+      toast.error("Failed to update office inbox");
+    } finally {
+      setIsSavingOfficeInbox(false);
     }
   };
 
@@ -599,7 +636,7 @@ export default function AdminDashboard() {
                               : "Email delivery needs attention."}
                         </p>
                         {emailStatus?.officeDestination && (
-                          <p className="text-xs text-gray-500 mt-1">Office inbox: {emailStatus.officeDestination}</p>
+                          <p className="text-xs text-gray-500 mt-1">Notification recipients: {emailStatus.officeDestination}</p>
                         )}
                         {emailStatus?.fromEmail && (
                           <p className="text-xs text-gray-500">Sender: {emailStatus.fromEmail}</p>
@@ -608,9 +645,30 @@ export default function AdminDashboard() {
                           <p className="text-xs text-amber-700 mt-1">Missing: {emailStatus.missing.join(", ")}</p>
                         )}
                       </div>
-                      <Button type="button" variant="outline" onClick={handleSendTestEmail} disabled={isSendingEmailTest || isEmailStatusLoading}>
-                        {isSendingEmailTest ? "Sending..." : "Send test email"}
-                      </Button>
+                      <div className="flex w-full flex-col gap-2 md:w-auto">
+                        <Input
+                          type="email"
+                          value={officeInboxInput}
+                          onChange={(event) => setOfficeInboxInput(event.target.value)}
+                          placeholder="Add one or more emails, separated by commas"
+                          className="min-w-[240px]"
+                          disabled={isEmailStatusLoading || isSavingOfficeInbox}
+                        />
+                        <p className="text-xs text-gray-500">Use commas to add or remove multiple notification addresses.</p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleSaveOfficeInbox}
+                            disabled={isEmailStatusLoading || isSavingOfficeInbox || !officeInboxInput.trim()}
+                          >
+                            {isSavingOfficeInbox ? "Saving..." : "Save recipients"}
+                          </Button>
+                          <Button type="button" variant="outline" onClick={handleSendTestEmail} disabled={isSendingEmailTest || isEmailStatusLoading}>
+                            {isSendingEmailTest ? "Sending..." : "Send test email"}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow-md">

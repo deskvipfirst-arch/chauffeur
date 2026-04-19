@@ -172,6 +172,12 @@ create table if not exists public.greeter_invoices (
   payment_reference text
 );
 
+create table if not exists public.app_settings (
+  key text primary key,
+  value text,
+  updated_at timestamptz default now()
+);
+
 alter table public.greeter_invoices add column if not exists booking_id uuid;
 alter table public.greeter_invoices add column if not exists booking_ref text;
 alter table public.greeter_invoices add column if not exists greeter_id uuid;
@@ -205,6 +211,7 @@ alter table public.bookings enable row level security;
 alter table public.drivers enable row level security;
 alter table public.driverPayments enable row level security;
 alter table public.greeter_invoices enable row level security;
+alter table public.app_settings enable row level security;
 
 do $$ begin
   create policy "public read locations" on public.locations for select using (true);

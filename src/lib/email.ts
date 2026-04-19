@@ -46,6 +46,7 @@ const BRAND_NAME = "VIP Greeters";
 const BRAND_SUBTITLE = "London Chauffeur Hire";
 const BRAND_ACCENT = "#DAA520";
 const BRAND_DARK = "#1D3557";
+const DEFAULT_OFFICE_INBOX = "desk.vipfirst@gmail.com";
 
 function escapeHtml(value: string) {
   return value
@@ -98,17 +99,36 @@ export function maskEmailAddress(value?: string | null) {
   return `${maskedLocal}@${domain}`;
 }
 
+function splitEmailRecipients(value?: string | null) {
+  return String(value ?? "")
+    .split(/[;,\n]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function getOfficeNotificationRecipients(input: EmailConfigSummaryInput = {}) {
+  const contactEmail = String(input.contactEmail ?? process.env.CONTACT_EMAIL ?? "").trim();
+  const bookingNotificationEmail = String(input.bookingNotificationEmail ?? process.env.BOOKING_NOTIFICATION_EMAIL ?? "").trim();
+
+  const recipients = [...splitEmailRecipients(bookingNotificationEmail), ...splitEmailRecipients(contactEmail)];
+  if (recipients.length === 0) {
+    recipients.push(DEFAULT_OFFICE_INBOX);
+  }
+
+  return Array.from(new Set(recipients));
+}
+
 export function getTransactionalEmailConfigSummary(input: EmailConfigSummaryInput = {}) {
   const apiKey = String(input.apiKey ?? process.env.RESEND_API_KEY ?? "").trim();
   const fromEmail = String(input.fromEmail ?? process.env.RESEND_FROM_EMAIL ?? "").trim();
   const contactEmail = String(input.contactEmail ?? process.env.CONTACT_EMAIL ?? "").trim();
   const bookingNotificationEmail = String(input.bookingNotificationEmail ?? process.env.BOOKING_NOTIFICATION_EMAIL ?? "").trim();
-  const officeDestination = contactEmail || bookingNotificationEmail;
+  const officeRecipients = getOfficeNotificationRecipients({ contactEmail, bookingNotificationEmail });
+  const officeDestination = officeRecipients.map((item) => maskEmailAddress(item)).filter(Boolean).join(", ");
   const missing: string[] = [];
 
   if (!apiKey) missing.push("RESEND_API_KEY");
   if (!fromEmail) missing.push("RESEND_FROM_EMAIL");
-  if (!officeDestination) missing.push("CONTACT_EMAIL or BOOKING_NOTIFICATION_EMAIL");
 
   return {
     configured: missing.length === 0,
@@ -252,22 +272,36 @@ export function buildBookingConfirmationEmail(input: BookingConfirmationInput) {
 
 export function buildOfficeBookingNotificationEmail(input: BookingConfirmationInput) {
   const customer = escapeHtml(`${input.fullName} (${input.email})`);
+  const serviceDate = new Date(input.dateTime);
+  const formattedDate = Number.isNaN(serviceDate.getTime())
+    ? input.dateTime
+    : serviceDate.toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+  const appUrl = String(process.env.NEXT_PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
+  const adminUrl = appUrl ? `${appUrl}/administrator/signin` : "";
 
   return {
-    subject: `New paid booking: ${input.bookingRef}`,
-    text: `A booking has been paid. Ref: ${input.bookingRef}. Customer: ${input.fullName} (${input.email}). Pickup: ${input.pickupLocation}. Amount: £${input.amount.toFixed(2)}.`,
+    subject: `Office action needed: ${input.bookingRef}`,
+    text: `New paid booking received. Ref: ${input.bookingRef}. Customer: ${input.fullName} (${input.email}). Service: ${input.serviceType}. Date: ${formattedDate}. Pickup: ${input.pickupLocation}. ${input.dropoffLocation ? `Drop-off: ${input.dropoffLocation}. ` : ""}Amount: £${input.amount.toFixed(2)}. Please review it in the office dashboard${adminUrl ? `: ${adminUrl}` : "."}`,
     html: buildEmailShell({
-      title: "New paid booking",
-      intro: "A customer has completed payment and the booking is ready for office review.",
+      title: "Booking received for office review",
+      intro: "A customer payment has cleared and the office team can now review, confirm, update, or cancel this booking.",
       contentHtml: `
         <p style="margin:0 0 8px;"><strong>Reference:</strong> ${escapeHtml(input.bookingRef)}</p>
         <p style="margin:0 0 8px;"><strong>Customer:</strong> ${customer}</p>
         <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeHtml(input.serviceType)}</p>
+        <p style="margin:0 0 8px;"><strong>Date and time:</strong> ${escapeHtml(formattedDate)}</p>
         <p style="margin:0 0 8px;"><strong>Pickup:</strong> ${escapeHtml(input.pickupLocation)}</p>
         ${input.dropoffLocation ? `<p style="margin:0 0 8px;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
-        <p style="margin:0;"><strong>Amount paid:</strong> £${input.amount.toFixed(2)}</p>
+        <p style="margin:0 0 12px;"><strong>Amount paid:</strong> £${input.amount.toFixed(2)}</p>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
+          <p style="margin:0 0 8px;"><strong>Next step:</strong> Open the office dashboard and review this booking.</p>
+          ${adminUrl ? `<p style="margin:0;"><a href="${escapeHtml(adminUrl)}" style="color:${BRAND_DARK};font-weight:700;">Open office dashboard</a></p>` : ""}
+        </div>
       `,
-      footerNote: "Office follow-up may now begin for this booking.",
+      footerNote: "This email was sent to the business owner and office operations inbox.",
     }),
   };
 }

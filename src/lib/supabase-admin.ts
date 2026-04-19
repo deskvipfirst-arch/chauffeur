@@ -12,6 +12,8 @@ const serviceRoleKey =
   "placeholder-service-role-key";
 
 const GREETER_INVOICES_TABLE = "greeter_invoices";
+const APP_SETTINGS_TABLE = "app_settings";
+const OFFICE_NOTIFICATION_EMAIL_KEY = "office_notification_email";
 
 export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
   auth: {
@@ -109,6 +111,41 @@ async function selectAllOrEmpty(table: string) {
   }
 
   return data || [];
+}
+
+async function getAppSetting(key: string) {
+  const { data, error } = await supabaseAdmin
+    .from(APP_SETTINGS_TABLE)
+    .select("key, value")
+    .eq("key", key)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      return null;
+    }
+    throw error;
+  }
+
+  return typeof data?.value === "string" ? data.value.trim() : null;
+}
+
+async function setAppSetting(key: string, value: string) {
+  const payload = {
+    key,
+    value,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
+    await supabaseAdmin.from(APP_SETTINGS_TABLE).upsert(nextPayload, { onConflict: "key" })
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return value;
 }
 
 async function runMutationWithSchemaFallback<T>(
@@ -421,6 +458,26 @@ export async function getUserProfile(userId: string) {
   const { data, error } = await supabaseAdmin.from(COLLECTIONS.USERS).select("*").eq("id", userId).maybeSingle();
   if (error) throw error;
   return data ? { id: String(data.id), ...normalizeDbRow(data) } : null;
+}
+
+export async function getOfficeNotificationEmailSetting() {
+  return await getAppSetting(OFFICE_NOTIFICATION_EMAIL_KEY);
+}
+
+export async function setOfficeNotificationEmailSetting(email: string) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("Office inbox email is required");
+  }
+
+  try {
+    return await setAppSetting(OFFICE_NOTIFICATION_EMAIL_KEY, normalizedEmail);
+  } catch (error) {
+    if (isMissingTableError(error as { code?: string; message?: string; details?: string } | null)) {
+      throw new Error("Database update required before the office inbox can be saved");
+    }
+    throw error;
+  }
 }
 
 export async function requireAuthorizedUser(authHeader: string | null, allowedRoles: string[] = []) {

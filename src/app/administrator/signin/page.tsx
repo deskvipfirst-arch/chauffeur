@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { auth } from "@/lib/supabase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "@/lib/supabase-auth";
 import { Button } from "@/components/ui/button";
@@ -171,6 +172,9 @@ export default function AdminSignInPage() {
           <CardDescription className="text-center">
             Sign in to access the administrator dashboard
           </CardDescription>
+          <p className="text-center text-xs text-slate-500">
+            No admin account yet? <Link href="/administrator/setup" className="font-medium text-blue-600 hover:underline">Create the first admin</Link>
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

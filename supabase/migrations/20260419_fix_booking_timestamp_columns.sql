@@ -38,3 +38,13 @@ begin
 exception when others then
   raise notice 'booking constraint alignment skipped: %', sqlerrm;
 end $$;
+
+create table if not exists public.app_settings (
+  key text primary key,
+  value text,
+  updated_at timestamptz default now()
+);
+
+insert into public.app_settings (key, value)
+values ('office_notification_email', 'desk.vipfirst@gmail.com')
+on conflict (key) do nothing;

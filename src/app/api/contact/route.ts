@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import {
   buildContactNotificationEmail,
   canSendTransactionalEmail,
+  getOfficeNotificationRecipients,
   sendTransactionalEmail,
 } from "@/lib/email";
+import { getOfficeNotificationEmailSetting } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 
@@ -28,8 +30,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const destination = process.env.CONTACT_EMAIL || process.env.BOOKING_NOTIFICATION_EMAIL;
-    if (!destination) {
+    const storedOfficeEmail = await getOfficeNotificationEmailSetting();
+    const destinations = getOfficeNotificationRecipients({ bookingNotificationEmail: storedOfficeEmail ?? undefined });
+    if (destinations.length === 0) {
       return NextResponse.json(
         { success: false, message: "Business contact email is not configured yet." },
         { status: 503 }
@@ -46,7 +49,7 @@ export async function POST(req: Request) {
     });
 
     await sendTransactionalEmail({
-      to: destination,
+      to: destinations,
       subject: emailContent.subject,
       text: emailContent.text,
       html: emailContent.html,
