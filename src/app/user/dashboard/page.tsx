@@ -177,7 +177,6 @@ export default function CustomerDashboard() {
     try {
       await updateDoc(doc(db, "bookings", booking.id), {
         status: "cancelled",
-        updated_at: new Date().toISOString(),
       });
 
       setBookings((current) =>
@@ -196,7 +195,6 @@ export default function CustomerDashboard() {
     try {
       await updateDoc(doc(db, "bookings", booking.id), {
         status: "deleted",
-        updated_at: new Date().toISOString(),
       });
 
       setBookings((current) => current.filter((item) => item.id !== booking.id));

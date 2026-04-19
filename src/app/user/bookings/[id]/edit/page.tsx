@@ -62,10 +62,18 @@ export default function EditBookingPage({
 
     try {
       const dateTime = new Date(`${date}T${time}`);
+      const {
+        id: _id,
+        created_at: _createdAt,
+        createdAt: _createdAtCamel,
+        updated_at: _updatedAt,
+        updatedAt: _updatedAtCamel,
+        ...editableBooking
+      } = booking as any;
+
       await updateDoc(doc(db, "bookings", params.id), {
-        ...booking,
+        ...editableBooking,
         date_time: dateTime.toISOString(),
-        updated_at: new Date().toISOString(),
       });
       toast.success("Booking updated successfully");
       router.push("/user/dashboard");

@@ -27,7 +27,6 @@ export default function PaymentSuccessPage({ params }: { params: { id: string } 
         // Store the session ID and let the webhook handle the status update
         await updateDoc(doc(db, "bookings", params.id), {
           stripe_session_id: sessionId,
-          updated_at: new Date().toISOString(),
         });
 
         toast.success("Payment processing...");
