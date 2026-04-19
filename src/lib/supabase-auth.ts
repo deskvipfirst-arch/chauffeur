@@ -40,6 +40,7 @@ export async function signInWithEmailAndPassword(
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw normalizeAuthError(error);
 
+  setCachedUser(data.user ?? null);
   const user = toCompatUser(data.user);
   if (!user) {
     throw normalizeAuthError({ message: "No user returned from Supabase sign-in." });
@@ -89,6 +90,7 @@ export async function createUserWithEmailAndPassword(
   });
   if (error) throw normalizeAuthError(error);
 
+  setCachedUser(data.user ?? null);
   const user = toCompatUser(data.user);
   if (!user) {
     throw normalizeAuthError({ message: "No user returned from Supabase sign-up." });

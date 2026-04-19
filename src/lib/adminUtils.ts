@@ -1,21 +1,30 @@
-import { auth, db } from "@/lib/supabase";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "@/lib/supabase-auth";
-import { doc, setDoc, getDoc } from "@/lib/supabase-db";
+import { auth, db, getAccessToken } from "@/lib/supabase";
+import { doc, getDoc } from "@/lib/supabase-db";
 import { canonicalizeUserRole, isAllowedRole } from "./roles";
+
+async function saveAdminRoleServerSide(email: string, password: string) {
+  const token = await getAccessToken();
+  const response = await fetch("/api/admin/bootstrap", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(result?.error || "Failed to create admin user");
+  }
+
+  return result;
+}
 
 export async function createAdminUser(email: string, password: string) {
   try {
-    // Create the user in Supabase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-
-    // Create the user document in Firestore with admin role
-    await setDoc(doc(db, "users", user.uid), {
-      email: user.email,
-      role: "admin",
-    });
-
-    return { success: true, user };
+    const result = await saveAdminRoleServerSide(email, password);
+    return { success: true, user: result?.user || { email } };
   } catch (error: any) {
     console.error("Error creating admin user:", error);
     throw new Error(error.message || "Failed to create admin user");
@@ -27,10 +36,20 @@ export { canonicalizeUserRole, isAllowedRole } from "./roles";
 export async function getUserRole(userId: string) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
-    if (!userDoc.exists()) return null;
-    return canonicalizeUserRole(userDoc.data().role || null);
+    if (userDoc.exists()) {
+      return canonicalizeUserRole(userDoc.data().role || null);
+    }
+
+    if (auth.currentUser?.uid === userId) {
+      return canonicalizeUserRole(auth.currentUser.role || null);
+    }
+
+    return null;
   } catch (error) {
     console.error("Error checking user role:", error);
+    if (auth.currentUser?.uid === userId) {
+      return canonicalizeUserRole(auth.currentUser.role || null);
+    }
     return null;
   }
 }
@@ -48,30 +67,8 @@ export async function isGreeterUser(userId: string) {
 // Function to create the first admin user
 export async function createFirstAdminUser(email: string, password: string) {
   try {
-    let userCredential;
-
-    try {
-      userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    } catch (error: any) {
-      const message = String(error?.message || "").toLowerCase();
-      const code = String(error?.code || "").toLowerCase();
-      const accountExists = code === "auth/email-already-in-use" || message.includes("already registered");
-
-      if (!accountExists) {
-        throw error;
-      }
-
-      userCredential = await signInWithEmailAndPassword(auth, email, password);
-    }
-
-    const user = userCredential.user;
-
-    await setDoc(doc(db, "users", user.uid), {
-      email: user.email,
-      role: "admin",
-    });
-
-    return { success: true, user };
+    const result = await saveAdminRoleServerSide(email, password);
+    return { success: true, user: result?.user || { email } };
   } catch (error: any) {
     console.error("Error creating first admin user:", error);
     throw new Error(error.message || "Failed to create first admin user");

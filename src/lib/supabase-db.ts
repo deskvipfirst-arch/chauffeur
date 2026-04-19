@@ -231,7 +231,8 @@ export async function getDocs(ref: CollectionRef | QueryRef) {
     if (
       error.code === "PGRST205" ||
       error.code === "42P01" ||
-      /Could not find the table|relation .* does not exist/i.test(errorMessage)
+      error.code === "42501" ||
+      /Could not find the table|relation .* does not exist|row-level security/i.test(errorMessage)
     ) {
       return makeQuerySnapshot([]);
     }
@@ -252,7 +253,13 @@ export async function getDoc(ref: DocRef) {
     .eq("id", ref.id)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    const errorMessage = `${error.message ?? ""} ${error.details ?? ""}`;
+    if (error.code === "42501" || /row-level security/i.test(errorMessage)) {
+      return makeDocSnapshot(undefined);
+    }
+    throw error;
+  }
   return makeDocSnapshot(data);
 }
 

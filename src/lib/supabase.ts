@@ -21,6 +21,7 @@ export type CompatUser = {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  role?: string | null;
   getIdToken: () => Promise<string>;
 };
 
@@ -43,6 +44,7 @@ export function toCompatUser(user: SupabaseUser | null): CompatUser | null {
       user.user_metadata?.full_name ||
       null,
     photoURL: user.user_metadata?.avatar_url || null,
+    role: typeof user.user_metadata?.role === "string" ? user.user_metadata.role : null,
     getIdToken: getAccessToken,
   };
 }

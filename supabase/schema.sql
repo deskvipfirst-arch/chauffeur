@@ -203,6 +203,18 @@ exception when duplicate_object then null; end $$;
 
 alter table public.users enable row level security;
 alter table public.profiles enable row level security;
+
+do $$ begin
+  create policy "users can read own user record" on public.users for select using (auth.uid() = id);
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "users can insert own user record" on public.users for insert with check (auth.uid() = id);
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "users can update own user record" on public.users for update using (auth.uid() = id);
+exception when duplicate_object then null; end $$;
 alter table public.locations enable row level security;
 alter table public.vehicles enable row level security;
 alter table public.service_rates enable row level security;
