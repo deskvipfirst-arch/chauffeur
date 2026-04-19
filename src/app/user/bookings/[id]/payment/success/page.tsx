@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { doc, updateDoc } from "@/lib/supabase-db";
-import { db } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -24,12 +22,21 @@ export default function PaymentSuccessPage({ params }: { params: { id: string } 
       }
 
       try {
-        // Store the session ID and let the webhook handle the status update
-        await updateDoc(doc(db, "bookings", params.id), {
-          stripe_session_id: sessionId,
+        const response = await fetch("/api/stripe/confirm-session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ sessionId }),
         });
 
-        toast.success("Payment processing...");
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result?.error || result?.message || "Failed to confirm payment session");
+        }
+
+        toast.success(result?.confirmed ? "Payment confirmed." : "Payment is still processing.");
       } catch (error) {
         console.error("Error updating booking:", error);
         toast.error("Failed to update booking status");

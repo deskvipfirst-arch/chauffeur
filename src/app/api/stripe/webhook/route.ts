@@ -9,6 +9,11 @@ import {
   canSendTransactionalEmail,
   sendTransactionalEmail,
 } from "@/lib/email";
+import {
+  getPaymentSyncErrorMessage,
+  isLegacyBookingStatusConstraintError,
+  isStripeSessionPaid,
+} from "@/lib/stripePaymentStatus";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -39,10 +44,23 @@ export async function POST(req: Request) {
       }
 
       // Query for the booking with this session ID
-      const querySnapshot = await adminDb
+      let querySnapshot = await adminDb
         .collection("bookings")
         .where("stripe_session_id", "==", session.id)
         .get();
+
+      if (querySnapshot.empty && session.metadata?.bookingId) {
+        querySnapshot = await adminDb
+          .collection("bookings")
+          .where("id", "==", session.metadata.bookingId)
+          .get();
+
+        if (!querySnapshot.empty) {
+          await adminDb.collection("bookings").doc(querySnapshot.docs[0].id).update({
+            stripe_session_id: session.id,
+          });
+        }
+      }
 
       if (querySnapshot.empty) {
         return NextResponse.json(
@@ -55,12 +73,31 @@ export async function POST(req: Request) {
       const bookingDoc = querySnapshot.docs[0];
       const bookingData = bookingDoc.data?.() || {};
       const alreadyPaid = String(bookingData.payment_status || "").toLowerCase() === "paid";
+      const sessionPaid = isStripeSessionPaid(session);
 
-      await adminDb.collection("bookings").doc(bookingDoc.id).update({
-        status: "confirmed",
-        payment_status: "Paid",
-        updated_at: new Date(),
-      });
+      if (sessionPaid) {
+        const paymentUpdate = {
+          payment_status: "Paid",
+          stripe_session_id: session.id,
+        };
+
+        try {
+          await adminDb.collection("bookings").doc(bookingDoc.id).update({
+            ...paymentUpdate,
+            status: "confirmed",
+          });
+        } catch (error) {
+          if (!isLegacyBookingStatusConstraintError(error)) {
+            throw error;
+          }
+
+          await adminDb.collection("bookings").doc(bookingDoc.id).update(paymentUpdate);
+        }
+      }
+
+      if (!sessionPaid) {
+        return NextResponse.json({ received: true, paymentStatus: session.payment_status });
+      }
 
       if (!alreadyPaid && canSendTransactionalEmail()) {
         const serviceType = String(bookingData.service_type || bookingData.serviceType || "Booking")
@@ -123,10 +160,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
-    const error = err as Error;
-    return NextResponse.json(
-      { error: error.message || "Webhook error" },
-      { status: 400 }
-    );
+    const message = getPaymentSyncErrorMessage(err);
+    return NextResponse.json({ error: message || "Webhook error" }, { status: 400 });
   }
 }

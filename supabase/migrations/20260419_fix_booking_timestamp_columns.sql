@@ -23,3 +23,18 @@ begin
     execute 'update public.bookings set updated_at = coalesce(updated_at, updatedat) where updatedat is not null';
   end if;
 end $$;
+
+do $$
+begin
+  alter table if exists public.bookings drop constraint if exists bookings_status_check;
+  alter table if exists public.bookings
+    add constraint bookings_status_check
+    check (lower(coalesce(status, 'pending')) in ('pending', 'confirmed', 'assigned', 'accepted', 'picked_up', 'completed', 'cancelled', 'deleted'));
+
+  alter table if exists public.bookings drop constraint if exists bookings_payment_status_check;
+  alter table if exists public.bookings
+    add constraint bookings_payment_status_check
+    check (lower(coalesce(payment_status, 'pending')) in ('pending', 'paid', 'failed', 'cancelled', 'refunded', 'unpaid', 'no_payment_required'));
+exception when others then
+  raise notice 'booking constraint alignment skipped: %', sqlerrm;
+end $$;

@@ -93,6 +93,10 @@ function getStatusBadge(booking: Booking) {
     return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>;
   }
 
+  if (String(booking.status || "").toLowerCase() === "pending") {
+    return <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100">Paid • Pending review</Badge>;
+  }
+
   return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">{formatStatusLabel(booking.status || "confirmed")}</Badge>;
 }
 
