@@ -26,6 +26,27 @@ test.describe("acceptance smoke", () => {
     await expect(page.getByLabel(/pickup location|meet up location/i).first()).toBeVisible();
   });
 
+  test("booking validation feedback is visible after incomplete submission", async ({ page }) => {
+    await page.goto("/booking");
+
+    const pickupLocationSelect = page.locator("main").getByRole("combobox").nth(2);
+    await expect(pickupLocationSelect).toBeVisible();
+    await page.waitForFunction(() => {
+      const selects = Array.from(document.querySelectorAll("main select"));
+      return selects.some((select) => Array.from((select as HTMLSelectElement).options).some((option) => option.text.includes("Heathrow Airport Terminal 2")));
+    });
+
+    await pickupLocationSelect.selectOption({ label: "Heathrow Airport Terminal 2" });
+    await page.getByPlaceholder(/enter your full name/i).fill("Jane Smith");
+    await page.getByPlaceholder(/enter your email/i).fill("jane@example.com");
+    await page.getByPlaceholder(/enter your phone number/i).fill("07123456789");
+    await page.getByRole("button", { name: /continue to booking/i }).click();
+
+    await expect(
+      page.locator("main [role='alert']").filter({ hasText: /arrival flight number is required/i })
+    ).toBeVisible();
+  });
+
   test("booking details carry into sign up", async ({ page }) => {
     const email = `booking.e2e.${Date.now()}@example.com`;
     const profileFailures: string[] = [];

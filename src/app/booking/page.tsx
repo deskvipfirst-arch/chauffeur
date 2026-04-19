@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -19,6 +19,7 @@ import { auth, db } from "@/lib/supabase";
 import { doc, getDoc } from "@/lib/supabase-db";
 import { Icons } from "@/components/ui/icons";
 import { loadStoredBookingDraft, saveStoredBookingDraft } from "@/lib/bookingFlow";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 type BookingDetails = {
   pickupLocationId: string | null;
@@ -60,6 +61,18 @@ function BookingContent() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
+
+  const showNotification = (type: "success" | "error", message: string) => {
+    setNotification({ type, message });
+
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        notificationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        notificationRef.current?.focus();
+      });
+    }
+  };
 
   const [bookingDetails, setBookingDetails] = useState<BookingDetails>({
     pickupLocationId: null,
@@ -91,18 +104,29 @@ function BookingContent() {
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       if (nextUser) {
-        getDoc(doc(db, "profiles", nextUser.uid)).then((profileDoc) => {
-          const firstName = String(profileDoc.data()?.firstName || "").trim();
-          const lastName = String(profileDoc.data()?.lastName || "").trim();
-          const profileName = `${firstName} ${lastName}`.trim();
+        getDoc(doc(db, "profiles", nextUser.uid))
+          .then((profileDoc) => {
+            const profile = profileDoc.data() || {};
+            const profileName = getUserDisplayName(profile, nextUser);
+            const phone = String(
+              profile.phone || profile.phoneNumber || profile.phone_number || ""
+            ).trim();
 
-          setBookingDetails((prev) => ({
-            ...prev,
-            fullName: prev.fullName || profileName,
-            email: prev.email || nextUser.email || "",
-            phone: prev.phone || profileDoc.data()?.phone || "",
-          }));
-        });
+            setBookingDetails((prev) => ({
+              ...prev,
+              fullName: prev.fullName || profileName,
+              email: prev.email || nextUser.email || "",
+              phone: prev.phone || phone,
+            }));
+          })
+          .catch((error) => {
+            console.warn("Profile prefill warning:", error);
+            setBookingDetails((prev) => ({
+              ...prev,
+              fullName: prev.fullName || getUserDisplayName(undefined, nextUser),
+              email: prev.email || nextUser.email || "",
+            }));
+          });
       }
     });
 
@@ -167,19 +191,13 @@ function BookingContent() {
         const dropoffLocation = locations.find(loc => loc.id === bookingDetails.dropoffLocationId);
         
         if (!pickupLocation && bookingDetails.pickupLocationId !== "other") {
-          setNotification({
-            type: "error",
-            message: "Pickup location is required",
-          });
+          showNotification("error", "Pickup location is required");
           setIsProcessingPayment(false);
           return;
         }
 
         if (!bookingDetails.date) {
-          setNotification({
-            type: "error",
-            message: "Date is required",
-          });
+          showNotification("error", "Date is required");
           setIsProcessingPayment(false);
           return;
         }
@@ -239,10 +257,7 @@ function BookingContent() {
         const { url, error } = await response.json();
 
         if (error) {
-          setNotification({
-            type: "error",
-            message: error,
-          });
+          showNotification("error", error);
           setIsProcessingPayment(false);
           return;
         }
@@ -251,10 +266,7 @@ function BookingContent() {
         window.location.href = url;
       } catch (err) {
         console.error("Payment error:", err);
-        setNotification({
-          type: "error",
-          message: "Failed to process payment. Please try again.",
-        });
+        showNotification("error", "Failed to process payment. Please try again.");
         setIsProcessingPayment(false);
       }
     }
@@ -262,7 +274,8 @@ function BookingContent() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    
+    setNotification(null);
+
     // Validate required fields
     const errors: Record<string, string> = {};
     if (!bookingDetails.date) errors.date = "Date is required";
@@ -309,10 +322,7 @@ function BookingContent() {
     }
     
     if (Object.keys(errors).length > 0) {
-      setNotification({
-        type: "error",
-        message: Object.values(errors).join("\n"),
-      });
+      showNotification("error", Object.values(errors).join("\n"));
       return;
     }
 
@@ -324,10 +334,7 @@ function BookingContent() {
         const dropoffLocation = locations.find(loc => loc.id === bookingDetails.dropoffLocationId);
         
         if (!bookingDetails.date) {
-          setNotification({
-            type: "error",
-            message: "Date is required",
-          });
+          showNotification("error", "Date is required");
           setIsProcessingPayment(false);
           return;
         }
@@ -387,10 +394,7 @@ function BookingContent() {
         const { url, error } = await response.json();
 
         if (error) {
-          setNotification({
-            type: "error",
-            message: error,
-          });
+          showNotification("error", error);
           setIsProcessingPayment(false);
           return;
         }
@@ -399,10 +403,7 @@ function BookingContent() {
         window.location.href = url;
       } catch (err) {
         console.error("Payment error:", err);
-        setNotification({
-          type: "error",
-          message: "Failed to process payment. Please try again.",
-        });
+        showNotification("error", "Failed to process payment. Please try again.");
         setIsProcessingPayment(false);
       }
     } else {
@@ -460,7 +461,11 @@ function BookingContent() {
         <div className="container mx-auto px-4">
           {notification && (
             <div
-              className={`p-4 mb-4 rounded ${
+              ref={notificationRef}
+              role="alert"
+              aria-live="polite"
+              tabIndex={-1}
+              className={`mb-4 rounded p-4 whitespace-pre-line outline-none ${
                 notification.type === "success"
                   ? "bg-green-100 text-green-700"
                   : "bg-red-100 text-red-700"
@@ -1002,9 +1007,24 @@ function BookingContent() {
                         variant="outline"
                         type="submit"
                         className="w-full"
+                        disabled={isProcessingPayment}
                       >
-                        Continue to Booking
+                        {isProcessingPayment ? (
+                          <>
+                            <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                            Opening secure payment...
+                          </>
+                        ) : user ? (
+                          "Continue to Secure Payment"
+                        ) : (
+                          "Continue to Booking"
+                        )}
                       </Button>
+                      <p className="text-xs text-muted-foreground">
+                        {user
+                          ? "You will be redirected to secure payment after review."
+                          : "Next, you can sign in, sign up, or continue as a guest."}
+                      </p>
                     </div>
                   </form>
                 </div>
