@@ -36,22 +36,14 @@ const APP_TO_DB_FIELD_ALIASES: Record<string, string> = {
   first_name: "firstname",
   last_name: "lastname",
   createdAt: "createdat",
-  created_at: "createdat",
   updatedAt: "updatedat",
-  updated_at: "updatedat",
   isFirstAdmin: "isfirstadmin",
   paymentDetails: "paymentdetails",
-  payment_details: "paymentdetails",
   baseRate: "baserate",
-  base_rate: "baserate",
   driverId: "driverid",
-  driver_id: "driverid",
   bookingId: "bookingid",
-  booking_id: "bookingid",
   paymentDate: "paymentdate",
-  payment_date: "paymentdate",
   paymentMethod: "paymentmethod",
-  payment_method: "paymentmethod",
 };
 
 const DB_TO_APP_FIELD_ALIASES: Record<string, string> = {

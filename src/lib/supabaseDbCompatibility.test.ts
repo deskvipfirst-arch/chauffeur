@@ -20,7 +20,7 @@ describe("supabase mutation compatibility", () => {
     });
   });
 
-  it("maps snake-case timestamp fields to the live lowercased schema columns", () => {
+  it("preserves snake-case timestamp fields for tables that already use underscore columns", () => {
     const payload = sanitizeMutationPayload({
       status: "cancelled",
       created_at: "2026-04-19T10:00:00.000Z",
@@ -29,8 +29,8 @@ describe("supabase mutation compatibility", () => {
 
     expect(payload).toEqual({
       status: "cancelled",
-      createdat: "2026-04-19T10:00:00.000Z",
-      updatedat: "2026-04-19T11:00:00.000Z",
+      created_at: "2026-04-19T10:00:00.000Z",
+      updated_at: "2026-04-19T11:00:00.000Z",
     });
   });
 
