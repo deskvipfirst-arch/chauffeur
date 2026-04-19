@@ -72,8 +72,6 @@ function SignUpContent() {
           email: formData.email,
           phone: formData.phone,
           role: "user",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
         });
       } catch (profileError) {
         console.warn("Profile setup warning:", profileError);

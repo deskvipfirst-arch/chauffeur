@@ -66,6 +66,15 @@ function applyWhere(builder: any, constraint: WhereConstraint) {
   }
 }
 
+export function sanitizeMutationPayload(data: Record<string, any>) {
+  const payload = { ...data };
+
+  delete payload.createdAt;
+  delete payload.updatedAt;
+
+  return payload;
+}
+
 export function collection(_db: any, table: string): CollectionRef {
   return { kind: "collection", table };
 }
@@ -144,9 +153,11 @@ export async function addDoc(ref: CollectionRef, data: Record<string, any>) {
     return { id: "" };
   }
 
+  const payload = sanitizeMutationPayload(data);
+
   const { data: inserted, error } = await supabase
     .from(ref.table)
-    .insert(data)
+    .insert(payload)
     .select("*")
     .single();
 
@@ -157,7 +168,7 @@ export async function addDoc(ref: CollectionRef, data: Record<string, any>) {
 export async function setDoc(ref: DocRef, data: Record<string, any>) {
   if (!isSupabaseConfigured) return;
 
-  const payload = { id: ref.id, ...data };
+  const payload = sanitizeMutationPayload({ id: ref.id, ...data });
   const { error } = await supabase.from(ref.table).upsert(payload);
   if (error) throw error;
 }
@@ -165,7 +176,8 @@ export async function setDoc(ref: DocRef, data: Record<string, any>) {
 export async function updateDoc(ref: DocRef, data: Record<string, any>) {
   if (!isSupabaseConfigured) return;
 
-  const { error } = await supabase.from(ref.table).update(data).eq("id", ref.id);
+  const payload = sanitizeMutationPayload(data);
+  const { error } = await supabase.from(ref.table).update(payload).eq("id", ref.id);
   if (error) throw error;
 }
 

@@ -288,7 +288,6 @@ export async function createBooking(bookingData: BookingData) {
     .from(COLLECTIONS.BOOKINGS)
     .insert({
       ...bookingData,
-      createdAt: new Date().toISOString(),
       status: "PENDING",
     })
     .select("*")
@@ -308,7 +307,6 @@ export async function createUserProfile(userId: string, userData: UserData) {
   const { error } = await supabaseAdmin.from(COLLECTIONS.USERS).upsert({
     id: userId,
     ...userData,
-    createdAt: new Date().toISOString(),
   });
 
   if (error) throw error;

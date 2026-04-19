@@ -13,8 +13,6 @@ export async function createAdminUser(email: string, password: string) {
     await setDoc(doc(db, "users", user.uid), {
       email: user.email,
       role: "admin",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     });
 
     return { success: true, user };
@@ -59,8 +57,6 @@ export async function createFirstAdminUser(email: string, password: string) {
       email: user.email,
       role: "admin",
       isFirstAdmin: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     });
 
     return { success: true, user };
