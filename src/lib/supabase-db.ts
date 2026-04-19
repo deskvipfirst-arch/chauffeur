@@ -30,11 +30,68 @@ type QueryRef = {
   constraints: Array<WhereConstraint | OrderConstraint>;
 };
 
+const APP_TO_DB_FIELD_ALIASES: Record<string, string> = {
+  firstName: "firstname",
+  lastName: "lastname",
+  createdAt: "createdat",
+  updatedAt: "updatedat",
+  isFirstAdmin: "isfirstadmin",
+  paymentDetails: "paymentdetails",
+  baseRate: "baserate",
+  driverId: "driverid",
+  bookingId: "bookingid",
+  paymentDate: "paymentdate",
+  paymentMethod: "paymentmethod",
+};
+
+const DB_TO_APP_FIELD_ALIASES: Record<string, string> = {
+  firstname: "firstName",
+  lastname: "lastName",
+  createdat: "createdAt",
+  updatedat: "updatedAt",
+  isfirstadmin: "isFirstAdmin",
+  paymentdetails: "paymentDetails",
+  baserate: "baseRate",
+  driverid: "driverId",
+  bookingid: "bookingId",
+  paymentdate: "paymentDate",
+  paymentmethod: "paymentMethod",
+  first_name: "firstName",
+  last_name: "lastName",
+  is_first_admin: "isFirstAdmin",
+  payment_details: "paymentDetails",
+  base_rate: "baseRate",
+  driver_id: "driverId",
+  booking_id: "bookingId",
+  payment_date: "paymentDate",
+  payment_method: "paymentMethod",
+};
+
+function toDbFieldName(field: string) {
+  return APP_TO_DB_FIELD_ALIASES[field] ?? field;
+}
+
+export function normalizeDbRow(row: any) {
+  if (!row || typeof row !== "object" || Array.isArray(row)) {
+    return row;
+  }
+
+  const normalized = { ...row };
+  for (const [dbField, appField] of Object.entries(DB_TO_APP_FIELD_ALIASES)) {
+    if (normalized[dbField] !== undefined && normalized[appField] === undefined) {
+      normalized[appField] = normalized[dbField];
+    }
+  }
+
+  return normalized;
+}
+
 function makeDocSnapshot(row: any) {
+  const normalizedRow = normalizeDbRow(row);
   return {
-    id: String(row?.id ?? ""),
-    data: () => row,
-    exists: () => Boolean(row),
+    id: String(normalizedRow?.id ?? ""),
+    data: () => normalizedRow,
+    exists: () => Boolean(normalizedRow),
   };
 }
 
@@ -48,29 +105,37 @@ function makeQuerySnapshot(rows: any[]) {
 }
 
 function applyWhere(builder: any, constraint: WhereConstraint) {
+  const field = toDbFieldName(constraint.field);
+
   switch (constraint.op) {
     case "==":
-      return builder.eq(constraint.field, constraint.value);
+      return builder.eq(field, constraint.value);
     case "!=":
-      return builder.neq(constraint.field, constraint.value);
+      return builder.neq(field, constraint.value);
     case ">":
-      return builder.gt(constraint.field, constraint.value);
+      return builder.gt(field, constraint.value);
     case ">=":
-      return builder.gte(constraint.field, constraint.value);
+      return builder.gte(field, constraint.value);
     case "<":
-      return builder.lt(constraint.field, constraint.value);
+      return builder.lt(field, constraint.value);
     case "<=":
-      return builder.lte(constraint.field, constraint.value);
+      return builder.lte(field, constraint.value);
     default:
-      return builder.eq(constraint.field, constraint.value);
+      return builder.eq(field, constraint.value);
   }
 }
 
 export function sanitizeMutationPayload(data: Record<string, any>) {
   const payload = { ...data };
 
-  delete payload.createdAt;
-  delete payload.updatedAt;
+  for (const [appField, dbField] of Object.entries(APP_TO_DB_FIELD_ALIASES)) {
+    if (payload[appField] !== undefined) {
+      if (payload[dbField] === undefined) {
+        payload[dbField] = payload[appField];
+      }
+      delete payload[appField];
+    }
+  }
 
   return payload;
 }
@@ -110,7 +175,7 @@ export async function getDocs(ref: CollectionRef | QueryRef) {
         builder = applyWhere(builder, constraint);
       }
       if (constraint.kind === "orderBy") {
-        builder = builder.order(constraint.field, {
+        builder = builder.order(toDbFieldName(constraint.field), {
           ascending: constraint.direction !== "desc",
         });
       }

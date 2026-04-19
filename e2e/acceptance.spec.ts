@@ -28,6 +28,21 @@ test.describe("acceptance smoke", () => {
 
   test("booking details carry into sign up", async ({ page }) => {
     const email = `booking.e2e.${Date.now()}@example.com`;
+    const profileFailures: string[] = [];
+    const profileWarnings: string[] = [];
+
+    page.on("response", async (response) => {
+      if (response.url().includes("/rest/v1/profiles") && response.status() >= 400) {
+        profileFailures.push(`${response.status()} ${await response.text()}`);
+      }
+    });
+
+    page.on("console", (message) => {
+      const text = message.text();
+      if (/Profile setup warning|Could not find the 'firstName' column|Could not find the 'createdAt' column/i.test(text)) {
+        profileWarnings.push(text);
+      }
+    });
 
     await page.goto("/booking");
     const pickupLocationSelect = page.locator("main").getByRole("combobox").nth(2);
@@ -60,6 +75,9 @@ test.describe("acceptance smoke", () => {
     if (page.url().includes("/user/signin")) {
       await expect(page.getByText(/account created|verify your email|continue/i).first()).toBeVisible();
     }
+
+    expect(profileFailures).toEqual([]);
+    expect(profileWarnings).toEqual([]);
   });
 
   test("user sign-in shows verification resend help", async ({ page }) => {

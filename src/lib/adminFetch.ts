@@ -124,10 +124,10 @@ export const fetchDrivers = async (): Promise<FetchResult<Driver>> => {
     const data = Array.isArray(payload)
       ? payload.map((driver) => ({
           id: driver.id,
-          full_name: `${driver.firstName || ""} ${driver.lastName || ""}`.trim(),
+          full_name: `${driver.firstName || driver.firstname || ""} ${driver.lastName || driver.lastname || ""}`.trim(),
           email: driver.email || "",
           phone: driver.phone || "",
-          payment_details: driver.paymentDetails || "",
+          payment_details: driver.paymentDetails || driver.paymentdetails || "",
           status: driver.status || "inactive",
         }))
       : [];
@@ -151,13 +151,13 @@ export const fetchDriverPayments = async (): Promise<FetchResult<DriverPayment>>
       const payment = doc.data();
       return {
         id: doc.id,
-        created_at: payment.createdAt,
-        driver_id: payment.driverId,
-        booking_id: payment.bookingId,
+        created_at: payment.createdAt || payment.createdat,
+        driver_id: payment.driverId || payment.driverid,
+        booking_id: payment.bookingId || payment.bookingid,
         amount: payment.amount || 0,
         status: payment.status || "pending",
-        payment_date: payment.paymentDate || null,
-        payment_method: payment.paymentMethod || "bank_transfer",
+        payment_date: payment.paymentDate || payment.paymentdate || null,
+        payment_method: payment.paymentMethod || payment.paymentmethod || "bank_transfer",
       };
     });
     isLoading = false;
@@ -227,7 +227,7 @@ export const fetchServicePricing = async (): Promise<FetchResult<ServicePricing>
     const data = Array.isArray(payload)
       ? payload.map((item) => ({
           id: item.id,
-          baseRate: item.baseRate ?? 0,
+          baseRate: item.baseRate ?? item.baserate ?? 0,
           description: item.description ?? "",
         }))
       : [];
