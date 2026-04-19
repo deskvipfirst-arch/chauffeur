@@ -18,6 +18,7 @@ import { doc, getDoc } from "@/lib/supabase-db";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import { getUserFirstName } from "@/lib/userDisplay";
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
@@ -40,10 +41,14 @@ export function Header() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        // Fetch user profile
         const userDoc = await getDoc(doc(db, "profiles", user.uid));
         if (userDoc.exists()) {
           setUserProfile(userDoc.data());
+        } else {
+          setUserProfile({
+            firstName: getUserFirstName(null, user),
+            email: user.email || "",
+          });
         }
       } else {
         setUserProfile(null);
@@ -77,6 +82,8 @@ export function Header() {
   const toggleMenu = () => {
     setIsOpen(!isOpen);
   };
+
+  const greetingName = getUserFirstName(userProfile, user);
 
   return (
     <header className="border-b relative z-[100]">
@@ -276,7 +283,7 @@ export function Header() {
                       className="flex items-center gap-2 hover:bg-accent"
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                     >
-                      <span>Hello, {userProfile?.firstName || "User"}</span>
+                      <span>Hello, {greetingName}</span>
                       <ChevronDown className="h-4 w-4" />
                     </Button>
                     {isDropdownOpen && (
@@ -439,7 +446,7 @@ export function Header() {
               {user ? (
                 <>
                   <div className="text-sm font-medium">
-                    Hello, {userProfile?.firstName || "User"}
+                    Hello, {greetingName}
                   </div>
                   <Link
                     href="/user/dashboard"

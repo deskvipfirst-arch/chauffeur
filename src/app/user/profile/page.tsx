@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icons } from "@/components/ui/icons";
 import { updateProfile } from "@/lib/supabase-auth";
+import { getUserDisplayName, getUserFirstName } from "@/lib/userDisplay";
 
 interface UserProfile {
   email: string | null;
@@ -46,13 +47,25 @@ export default function ProfilePage() {
 
       try {
         const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+        const fallbackDisplayName = getUserDisplayName(null, user);
+        const nameParts = fallbackDisplayName.split(/\s+/).filter(Boolean);
+        const fallbackFirstName = getUserFirstName(null, user);
+        const fallbackLastName = nameParts.slice(1).join(" ");
+
         if (profileDoc.exists()) {
           const data = profileDoc.data() as UserProfile;
           setFormData({
-            firstName: data.firstName || "",
-            lastName: data.lastName || "",
+            firstName: data.firstName || fallbackFirstName,
+            lastName: data.lastName || fallbackLastName,
             email: user.email || "",
             phone: data.phone || "",
+          });
+        } else {
+          setFormData({
+            firstName: fallbackFirstName,
+            lastName: fallbackLastName,
+            email: user.email || "",
+            phone: "",
           });
         }
       } catch (err) {
@@ -117,7 +130,7 @@ export default function ProfilePage() {
         <div className="mb-6">
           <h1 className="text-4xl font-bold">Profile Settings</h1>
           <p className="text-lg text-muted-foreground mt-2">
-            Hello, {formData.firstName || 'User'}! Manage your profile information here.
+            Hello, {formData.firstName || getUserFirstName(null, { email: formData.email })}! Manage your profile information here.
           </p>
         </div>
 
