@@ -33,15 +33,25 @@ type QueryRef = {
 const APP_TO_DB_FIELD_ALIASES: Record<string, string> = {
   firstName: "firstname",
   lastName: "lastname",
+  first_name: "firstname",
+  last_name: "lastname",
   createdAt: "createdat",
+  created_at: "createdat",
   updatedAt: "updatedat",
+  updated_at: "updatedat",
   isFirstAdmin: "isfirstadmin",
   paymentDetails: "paymentdetails",
+  payment_details: "paymentdetails",
   baseRate: "baserate",
+  base_rate: "baserate",
   driverId: "driverid",
+  driver_id: "driverid",
   bookingId: "bookingid",
+  booking_id: "bookingid",
   paymentDate: "paymentdate",
+  payment_date: "paymentdate",
   paymentMethod: "paymentmethod",
+  payment_method: "paymentmethod",
 };
 
 const DB_TO_APP_FIELD_ALIASES: Record<string, string> = {
@@ -81,6 +91,16 @@ export function normalizeDbRow(row: any) {
     if (normalized[dbField] !== undefined && normalized[appField] === undefined) {
       normalized[appField] = normalized[dbField];
     }
+  }
+
+  if (normalized.createdat !== undefined) {
+    if (normalized.createdAt === undefined) normalized.createdAt = normalized.createdat;
+    if (normalized.created_at === undefined) normalized.created_at = normalized.createdat;
+  }
+
+  if (normalized.updatedat !== undefined) {
+    if (normalized.updatedAt === undefined) normalized.updatedAt = normalized.updatedat;
+    if (normalized.updated_at === undefined) normalized.updated_at = normalized.updatedat;
   }
 
   return normalized;
@@ -138,6 +158,37 @@ export function sanitizeMutationPayload(data: Record<string, any>) {
   }
 
   return payload;
+}
+
+function extractMissingColumn(error: { message?: string; details?: string } | null) {
+  const errorText = `${error?.message ?? ""} ${error?.details ?? ""}`;
+  const match = errorText.match(/Could not find the ['"]([^'"]+)['"] column/i);
+  return match?.[1] ?? null;
+}
+
+async function runMutationWithSchemaFallback<T>(
+  payload: Record<string, any>,
+  action: (nextPayload: Record<string, any>) => Promise<{ data?: T | null; error: any }>
+) {
+  let nextPayload = { ...payload };
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const result = await action(nextPayload);
+
+    if (!result.error) {
+      return result;
+    }
+
+    const missingColumn = extractMissingColumn(result.error);
+    if (missingColumn && missingColumn in nextPayload) {
+      delete nextPayload[missingColumn];
+      continue;
+    }
+
+    throw result.error;
+  }
+
+  throw new Error("Supabase mutation failed after schema compatibility retries.");
 }
 
 export function collection(_db: any, table: string): CollectionRef {
@@ -220,21 +271,21 @@ export async function addDoc(ref: CollectionRef, data: Record<string, any>) {
 
   const payload = sanitizeMutationPayload(data);
 
-  const { data: inserted, error } = await supabase
-    .from(ref.table)
-    .insert(payload)
-    .select("*")
-    .single();
+  const { data: inserted, error } = await runMutationWithSchemaFallback<any>(payload, async (nextPayload) =>
+    await supabase.from(ref.table).insert(nextPayload).select("*").single()
+  );
 
   if (error) throw error;
-  return { id: String(inserted?.id ?? "") };
+  return { id: String((inserted as any)?.id ?? "") };
 }
 
 export async function setDoc(ref: DocRef, data: Record<string, any>) {
   if (!isSupabaseConfigured) return;
 
   const payload = sanitizeMutationPayload({ id: ref.id, ...data });
-  const { error } = await supabase.from(ref.table).upsert(payload);
+  const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
+    await supabase.from(ref.table).upsert(nextPayload)
+  );
   if (error) throw error;
 }
 
@@ -242,7 +293,9 @@ export async function updateDoc(ref: DocRef, data: Record<string, any>) {
   if (!isSupabaseConfigured) return;
 
   const payload = sanitizeMutationPayload(data);
-  const { error } = await supabase.from(ref.table).update(payload).eq("id", ref.id);
+  const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
+    await supabase.from(ref.table).update(nextPayload).eq("id", ref.id)
+  );
   if (error) throw error;
 }
 

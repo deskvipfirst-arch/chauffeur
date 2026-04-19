@@ -111,6 +111,31 @@ async function selectAllOrEmpty(table: string) {
   return data || [];
 }
 
+async function runMutationWithSchemaFallback<T>(
+  payload: Record<string, any>,
+  action: (nextPayload: Record<string, any>) => Promise<{ data?: T | null; error: any }>
+) {
+  let nextPayload = { ...payload };
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const result = await action(nextPayload);
+
+    if (!result.error) {
+      return result;
+    }
+
+    const missingColumn = extractMissingColumn(result.error);
+    if (missingColumn && missingColumn in nextPayload) {
+      delete nextPayload[missingColumn];
+      continue;
+    }
+
+    throw result.error;
+  }
+
+  throw new Error("Failed to apply mutation with the available schema.");
+}
+
 export const adminDb = {
   collection(table: string) {
     return {
@@ -129,35 +154,29 @@ export const adminDb = {
         }
 
         for (let attempt = 0; attempt < 8; attempt++) {
-          const { data: inserted, error } = await supabaseAdmin.from(table).insert(payload).select("*").single();
+          const { data: inserted, error } = await runMutationWithSchemaFallback<any>(payload, async (nextPayload) =>
+            await supabaseAdmin.from(table).insert(nextPayload).select("*").single()
+          );
 
           if (!error) {
             return inserted;
           }
 
-          if (table === COLLECTIONS.BOOKINGS) {
-            const missingColumn = extractMissingColumn(error);
-            if (missingColumn && missingColumn in payload) {
-              delete payload[missingColumn];
-              continue;
-            }
+          if (table === COLLECTIONS.BOOKINGS && shouldDropBookingUserId(error) && payload.user_id) {
+            try {
+              const createdUserRecord = await ensurePublicUserRecord(String(payload.user_id), {
+                email: String(payload.email ?? ""),
+                role: "user",
+              });
 
-            if (shouldDropBookingUserId(error) && payload.user_id) {
-              try {
-                const createdUserRecord = await ensurePublicUserRecord(String(payload.user_id), {
-                  email: String(payload.email ?? ""),
-                  role: "user",
-                });
-
-                if (!createdUserRecord) {
-                  delete payload.user_id;
-                }
-              } catch (userError) {
-                console.warn("Retrying booking without linked user record:", userError);
+              if (!createdUserRecord) {
                 delete payload.user_id;
               }
-              continue;
+            } catch (userError) {
+              console.warn("Retrying booking without linked user record:", userError);
+              delete payload.user_id;
             }
+            continue;
           }
 
           throw error;
@@ -168,11 +187,17 @@ export const adminDb = {
       doc(id: string) {
         return {
           async set(data: Record<string, any>) {
-            const { error } = await supabaseAdmin.from(table).upsert(sanitizeMutationPayload({ id, ...data }));
+            const payload = sanitizeMutationPayload({ id, ...data });
+            const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
+              await supabaseAdmin.from(table).upsert(nextPayload)
+            );
             if (error) throw error;
           },
           async update(data: Record<string, any>) {
-            const { error } = await supabaseAdmin.from(table).update(sanitizeMutationPayload(data)).eq("id", id);
+            const payload = sanitizeMutationPayload(data);
+            const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
+              await supabaseAdmin.from(table).update(nextPayload).eq("id", id)
+            );
             if (error) throw error;
           },
           async delete() {
@@ -308,12 +333,15 @@ export async function getBookings() {
 }
 
 export async function updateBooking(id: string, data: Record<string, any>) {
-  const { data: updated, error } = await supabaseAdmin
-    .from(COLLECTIONS.BOOKINGS)
-    .update(sanitizeMutationPayload({ ...data, updated_at: new Date().toISOString() }))
-    .eq("id", id)
-    .select("*")
-    .single();
+  const payload = sanitizeMutationPayload({ ...data, updated_at: new Date().toISOString() });
+  const { data: updated, error } = await runMutationWithSchemaFallback<any>(payload, async (nextPayload) =>
+    await supabaseAdmin
+      .from(COLLECTIONS.BOOKINGS)
+      .update(nextPayload)
+      .eq("id", id)
+      .select("*")
+      .single()
+  );
 
   if (error) throw error;
   return normalizeDbRow(updated);
@@ -377,11 +405,13 @@ export async function getBooking(bookingId: string) {
 }
 
 export async function createUserProfile(userId: string, userData: UserData) {
-  const { error } = await supabaseAdmin.from(COLLECTIONS.USERS).upsert(
-    sanitizeMutationPayload({
-      id: userId,
-      ...userData,
-    })
+  const payload = sanitizeMutationPayload({
+    id: userId,
+    ...userData,
+  });
+
+  const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
+    await supabaseAdmin.from(COLLECTIONS.USERS).upsert(nextPayload)
   );
 
   if (error) throw error;

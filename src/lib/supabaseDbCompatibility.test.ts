@@ -20,17 +20,33 @@ describe("supabase mutation compatibility", () => {
     });
   });
 
+  it("maps snake-case timestamp fields to the live lowercased schema columns", () => {
+    const payload = sanitizeMutationPayload({
+      status: "cancelled",
+      created_at: "2026-04-19T10:00:00.000Z",
+      updated_at: "2026-04-19T11:00:00.000Z",
+    });
+
+    expect(payload).toEqual({
+      status: "cancelled",
+      createdat: "2026-04-19T10:00:00.000Z",
+      updatedat: "2026-04-19T11:00:00.000Z",
+    });
+  });
+
   it("exposes camel-case aliases when reading lowercased rows back from Supabase", () => {
     const row = normalizeDbRow({
       firstname: "Jane",
       lastname: "Smith",
       createdat: "2026-04-19T10:00:00.000Z",
+      updatedat: "2026-04-19T11:00:00.000Z",
       isfirstadmin: true,
     });
 
     expect(row.firstName).toBe("Jane");
     expect(row.lastName).toBe("Smith");
     expect(row.createdAt).toBe("2026-04-19T10:00:00.000Z");
+    expect(row.updatedAt).toBe("2026-04-19T11:00:00.000Z");
     expect(row.isFirstAdmin).toBe(true);
   });
 });
