@@ -1,5 +1,5 @@
 import { auth, db } from "@/lib/supabase";
-import { createUserWithEmailAndPassword } from "@/lib/supabase-auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "@/lib/supabase-auth";
 import { doc, setDoc, getDoc } from "@/lib/supabase-db";
 import { canonicalizeUserRole, isAllowedRole } from "./roles";
 
@@ -48,23 +48,32 @@ export async function isGreeterUser(userId: string) {
 // Function to create the first admin user
 export async function createFirstAdminUser(email: string, password: string) {
   try {
-    // Create the user in Supabase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    let userCredential;
+
+    try {
+      userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
+      const message = String(error?.message || "").toLowerCase();
+      const code = String(error?.code || "").toLowerCase();
+      const accountExists = code === "auth/email-already-in-use" || message.includes("already registered");
+
+      if (!accountExists) {
+        throw error;
+      }
+
+      userCredential = await signInWithEmailAndPassword(auth, email, password);
+    }
+
     const user = userCredential.user;
 
-    // Create the user document in Firestore with admin role
     await setDoc(doc(db, "users", user.uid), {
       email: user.email,
       role: "admin",
-      isFirstAdmin: true,
     });
 
     return { success: true, user };
   } catch (error: any) {
     console.error("Error creating first admin user:", error);
-    if (error.code === 'auth/email-already-in-use') {
-      throw new Error("This email is already registered. Please use a different email.");
-    }
     throw new Error(error.message || "Failed to create first admin user");
   }
 } 

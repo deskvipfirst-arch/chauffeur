@@ -36,7 +36,7 @@ export default function SetupAdminPage() {
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Setup First Admin</CardTitle>
           <CardDescription className="text-center">
-            Create the first admin user for your application.
+            Create or restore the first admin user for your application.
           </CardDescription>
         </CardHeader>
         <CardContent>
