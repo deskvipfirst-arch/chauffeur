@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/supabase-admin";
+import { getBaseUrl } from "@/lib/base-url";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -30,12 +31,14 @@ export async function POST(req: Request) {
     const { bookingDetails, amount, userId } = await req.json();
 
     // Validate environment variables
-    if (!process.env.STRIPE_SECRET_KEY || !process.env.NEXT_PUBLIC_BASE_URL) {
+    if (!process.env.STRIPE_SECRET_KEY) {
       return NextResponse.json(
         { error: "Server configuration error" },
         { status: 500 }
       );
     }
+
+    const baseUrl = getBaseUrl(req);
 
     // Validate request body
     if (!bookingDetails?.fullName || !bookingDetails?.email || !bookingDetails?.pickupLocation || !bookingDetails?.dateTime || !amount || amount <= 0) {
@@ -82,8 +85,8 @@ export async function POST(req: Request) {
           flightNumberDeparture: String(bookingDetails.flightNumberDeparture || "N/A"),
         },
         customer_email: bookingDetails.email,
-        success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/`,
+        success_url: `${baseUrl}/booking/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/`,
         custom_text: {
           submit: {
             message: `Booking Summary:

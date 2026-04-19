@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { getBaseUrl } from "@/lib/base-url";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -8,6 +9,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export async function POST(request: Request) {
   try {
     const { bookingId, amount, bookingRef } = await request.json();
+    const baseUrl = getBaseUrl(request);
 
     // Create a Stripe checkout session
     const session = await stripe.checkout.sessions.create({
@@ -26,8 +28,8 @@ export async function POST(request: Request) {
         },
       ],
       mode: "payment",
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/user/bookings/${bookingId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/user/dashboard`,
+      success_url: `${baseUrl}/user/bookings/${bookingId}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/user/dashboard`,
       metadata: {
         bookingId,
       },

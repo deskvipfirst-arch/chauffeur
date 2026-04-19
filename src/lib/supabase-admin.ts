@@ -56,6 +56,48 @@ function extractMissingColumn(error: { message?: string; details?: string } | nu
   return match?.[1] ?? null;
 }
 
+export function shouldDropBookingUserId(error: { code?: string; message?: string; details?: string } | null) {
+  const errorText = `${error?.message ?? ""} ${error?.details ?? ""}`;
+  return error?.code === "23503" && /bookings_user_id_fkey/i.test(errorText);
+}
+
+async function ensurePublicUserRecord(userId: string | null | undefined, input?: { email?: string; role?: string }) {
+  const normalizedUserId = String(userId ?? "").trim();
+  const normalizedEmail = String(input?.email ?? "").trim().toLowerCase();
+
+  if (!normalizedUserId || !normalizedEmail) {
+    return false;
+  }
+
+  let payload = sanitizeMutationPayload({
+    id: normalizedUserId,
+    email: normalizedEmail,
+    role: canonicalizeUserRole(input?.role || "user"),
+  });
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { error } = await supabaseAdmin.from(COLLECTIONS.USERS).upsert(payload, { onConflict: "id" });
+
+    if (!error) {
+      return true;
+    }
+
+    const missingColumn = extractMissingColumn(error);
+    if (missingColumn && missingColumn in payload) {
+      delete payload[missingColumn];
+      continue;
+    }
+
+    if (isMissingTableError(error)) {
+      return false;
+    }
+
+    throw error;
+  }
+
+  return false;
+}
+
 async function selectAllOrEmpty(table: string) {
   const { data, error } = await supabaseAdmin.from(table).select("*");
 
@@ -75,6 +117,17 @@ export const adminDb = {
       async add(data: Record<string, any>) {
         let payload = sanitizeMutationPayload({ ...data });
 
+        if (table === COLLECTIONS.BOOKINGS && payload.user_id) {
+          try {
+            await ensurePublicUserRecord(String(payload.user_id), {
+              email: String(payload.email ?? ""),
+              role: "user",
+            });
+          } catch (error) {
+            console.warn("User bootstrap warning:", error);
+          }
+        }
+
         for (let attempt = 0; attempt < 8; attempt++) {
           const { data: inserted, error } = await supabaseAdmin.from(table).insert(payload).select("*").single();
 
@@ -86,6 +139,23 @@ export const adminDb = {
             const missingColumn = extractMissingColumn(error);
             if (missingColumn && missingColumn in payload) {
               delete payload[missingColumn];
+              continue;
+            }
+
+            if (shouldDropBookingUserId(error) && payload.user_id) {
+              try {
+                const createdUserRecord = await ensurePublicUserRecord(String(payload.user_id), {
+                  email: String(payload.email ?? ""),
+                  role: "user",
+                });
+
+                if (!createdUserRecord) {
+                  delete payload.user_id;
+                }
+              } catch (userError) {
+                console.warn("Retrying booking without linked user record:", userError);
+                delete payload.user_id;
+              }
               continue;
             }
           }
