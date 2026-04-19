@@ -7,9 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
-import { createUserWithEmailAndPassword, updateProfile } from "@/lib/supabase-auth";
-import { auth, db } from "@/lib/supabase";
-import { doc, setDoc } from "@/lib/supabase-db";
+import { createUserWithEmailAndPassword, syncUserProfile, updateProfile } from "@/lib/supabase-auth";
+import { auth } from "@/lib/supabase";
 import { getSignupErrorMessage, loadStoredBookingDraft, saveStoredBookingDraft, splitFullName } from "@/lib/bookingFlow";
 
 function SignUpContent() {
@@ -55,26 +54,45 @@ function SignUpContent() {
     setIsLoading(true);
 
     try {
+      const redirectPath = fromBooking
+        ? "/user/signin?from=booking&message=account_created"
+        : "/user/signin?message=account_created";
+      const emailRedirectTo = typeof window !== "undefined"
+        ? `${window.location.origin}${redirectPath}`
+        : undefined;
+
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
-        formData.password
+        formData.password,
+        {
+          emailRedirectTo,
+          userData: {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phone: formData.phone,
+            displayName: `${formData.firstName} ${formData.lastName}`.trim(),
+            role: "user",
+          },
+        }
       );
 
       await updateProfile(userCredential.user, {
         displayName: `${formData.firstName} ${formData.lastName}`.trim(),
       });
 
-      try {
-        await setDoc(doc(db, "profiles", userCredential.user.uid), {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          role: "user",
-        });
-      } catch (profileError) {
-        console.warn("Profile setup warning:", profileError);
+      if (userCredential.session) {
+        try {
+          await syncUserProfile(userCredential.user, {
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            email: formData.email,
+            phone: formData.phone,
+            role: "user",
+          });
+        } catch (profileError) {
+          console.warn("Profile setup warning:", profileError);
+        }
       }
 
       saveStoredBookingDraft({

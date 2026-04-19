@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, getCurrentUser } from "@/lib/supabase";
-import { doc, getDoc, updateDoc } from "@/lib/supabase-db";
+import { doc, getDoc, setDoc } from "@/lib/supabase-db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,11 +78,12 @@ export default function ProfilePage() {
     }
 
     try {
-      // Update profile in Firestore
-      await updateDoc(doc(db, "profiles", user.uid), {
+      await setDoc(doc(db, "profiles", user.uid), {
         firstName: formData.firstName,
         lastName: formData.lastName,
+        email: user.email || formData.email,
         phone: formData.phone,
+        role: "user",
       });
 
       // Update display name in Supabase Auth

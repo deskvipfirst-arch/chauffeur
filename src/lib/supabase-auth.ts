@@ -1,5 +1,6 @@
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import { auth, getCurrentUser, setCachedUser, supabase, toCompatUser, type CompatUser } from "@/lib/supabase";
+import { auth, db, getCurrentUser, setCachedUser, supabase, toCompatUser, type CompatUser } from "@/lib/supabase";
+import { doc, setDoc } from "@/lib/supabase-db";
 
 function normalizeAuthError(error: any) {
   const message = String(error?.message || "Authentication failed");
@@ -50,9 +51,42 @@ export async function signInWithEmailAndPassword(
 export async function createUserWithEmailAndPassword(
   _auth: typeof auth,
   email: string,
-  password: string
+  password: string,
+  options?: {
+    emailRedirectTo?: string;
+    userData?: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      displayName?: string;
+      role?: string;
+    };
+  }
 ): Promise<{ user: CompatUser; session: Session | null }> {
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const fullName =
+    options?.userData?.displayName ||
+    `${options?.userData?.firstName || ""} ${options?.userData?.lastName || ""}`.trim();
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: options?.emailRedirectTo,
+      data: {
+        firstName: options?.userData?.firstName,
+        firstname: options?.userData?.firstName,
+        first_name: options?.userData?.firstName,
+        lastName: options?.userData?.lastName,
+        lastname: options?.userData?.lastName,
+        last_name: options?.userData?.lastName,
+        phone: options?.userData?.phone,
+        displayName: fullName || undefined,
+        display_name: fullName || undefined,
+        full_name: fullName || undefined,
+        role: options?.userData?.role || "user",
+      },
+    },
+  });
   if (error) throw normalizeAuthError(error);
 
   const user = toCompatUser(data.user);
@@ -61,6 +95,32 @@ export async function createUserWithEmailAndPassword(
   }
 
   return { user, session: data.session ?? null };
+}
+
+export async function syncUserProfile(
+  user: CompatUser,
+  profile: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+  }
+) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session || !user?.uid) {
+    return false;
+  }
+
+  await setDoc(doc(db, "profiles", user.uid), {
+    firstName: profile.firstName || "",
+    lastName: profile.lastName || "",
+    email: profile.email || user.email || "",
+    phone: profile.phone || "",
+    role: profile.role || "user",
+  });
+
+  return true;
 }
 
 export async function updateProfile(_user: any, profile: { displayName?: string; photoURL?: string | null }) {
