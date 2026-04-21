@@ -107,6 +107,9 @@ export async function POST(req: Request) {
           .replace(/^./, (value) => value.toUpperCase())
           .trim();
 
+        const storedOfficeEmail = await getOfficeNotificationEmailSetting();
+        const officeRecipients = getOfficeNotificationRecipients({ bookingNotificationEmail: storedOfficeEmail ?? undefined });
+
         const customerEmail = buildBookingConfirmationEmail({
           fullName: String(bookingData.full_name || bookingData.fullName || session.customer_details?.name || "Customer"),
           email: String(bookingData.email || session.customer_details?.email || ""),
@@ -127,10 +130,8 @@ export async function POST(req: Request) {
           pickupLocation: String(bookingData.pickup_location || bookingData.pickupLocation || "TBC"),
           dropoffLocation: String(bookingData.dropoff_location || bookingData.dropoffLocation || ""),
           amount: Number(bookingData.amount || (session.amount_total || 0) / 100 || 0),
+          supportEmail: officeRecipients[0],
         });
-
-        const storedOfficeEmail = await getOfficeNotificationEmailSetting();
-        const officeRecipients = getOfficeNotificationRecipients({ bookingNotificationEmail: storedOfficeEmail ?? undefined });
         const deliveries = [
           customerEmail && (bookingData.email || session.customer_details?.email)
             ? sendTransactionalEmail({

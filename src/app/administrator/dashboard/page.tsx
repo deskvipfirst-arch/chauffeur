@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import VehiclesTab from "@/components/admin/VehiclesTab";
 import DriverPaymentsTab from "@/components/admin/DriverPaymentsTab";
 import InvoicesTab from "@/components/admin/InvoicesTab";
@@ -40,7 +40,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -70,6 +70,7 @@ export default function AdminDashboard() {
   const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
   const [officeInboxInput, setOfficeInboxInput] = useState("");
   const [isSavingOfficeInbox, setIsSavingOfficeInbox] = useState(false);
+  const lastHandledAuthUidRef = useRef<string | null>(null);
   const router = useRouter();
 
   // State for vehicles
@@ -142,23 +143,23 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    console.log("Setting up auth state listener...");
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log("Auth state changed:", user ? "User found" : "No user");
-      
       if (!user) {
-        console.log("No user found, redirecting to sign in...");
+        lastHandledAuthUidRef.current = null;
         window.location.replace("/administrator/signin");
         return;
       }
 
+      if (lastHandledAuthUidRef.current === user.uid) {
+        return;
+      }
+
+      lastHandledAuthUidRef.current = user.uid;
+
       try {
-        console.log("Checking admin status for user:", user.uid);
         const isAdmin = await isAdminUser(user.uid);
-        console.log("Is admin:", isAdmin);
 
         if (!isAdmin) {
-          console.log("User is not admin, signing out and redirecting...");
           const notice = buildUnauthorizedNotification("admin");
           toast.error(notice.message);
           await auth.signOut();
@@ -166,18 +167,12 @@ export default function AdminDashboard() {
           return;
         }
 
-        console.log("User is admin, setting up dashboard...");
         setIsAuthenticated(true);
         setIsAdmin(true);
         setIsLoading(false);
         setUserEmail(user.email || "");
 
-        console.log("Fetching dashboard data...");
-        refreshDashboardData().then(() => {
-          console.log("Dashboard data fetched successfully");
-        }).catch((error) => {
-          console.error("Error fetching dashboard data:", error);
-        });
+        await refreshDashboardData();
       } catch (error) {
         console.error("Error checking admin status:", error);
         await auth.signOut();
@@ -186,7 +181,6 @@ export default function AdminDashboard() {
     });
 
     return () => {
-      console.log("Cleaning up auth state listener...");
       unsubscribe();
     };
   }, []);
@@ -562,7 +556,6 @@ export default function AdminDashboard() {
             <DropdownMenu>
               <DropdownMenuTrigger className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="/avatars/01.png" alt={userEmail} />
                   <AvatarFallback>{userEmail.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>

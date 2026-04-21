@@ -1,3 +1,5 @@
+import { APP_NAME, APP_SUBTITLE, CONTACT_EMAIL, OWNER_DEFAULT_NOTIFICATION_EMAIL, WEBSITE_URL } from "@/lib/globalConfig";
+
 type DeliveryCheckInput = {
   apiKey?: string | null;
   fromEmail?: string | null;
@@ -40,13 +42,14 @@ type BookingConfirmationInput = {
   pickupLocation: string;
   dropoffLocation?: string | null;
   amount: number;
+  supportEmail?: string;
 };
 
-const BRAND_NAME = "VIP Greeters";
-const BRAND_SUBTITLE = "London Chauffeur Hire";
+const BRAND_NAME = APP_NAME;
+const BRAND_SUBTITLE = APP_SUBTITLE;
 const BRAND_ACCENT = "#DAA520";
 const BRAND_DARK = "#1D3557";
-const DEFAULT_OFFICE_INBOX = "desk.vipfirst@gmail.com";
+const DEFAULT_OFFICE_INBOX = OWNER_DEFAULT_NOTIFICATION_EMAIL;
 
 function escapeHtml(value: string) {
   return value
@@ -62,8 +65,9 @@ function buildEmailShell(input: {
   intro: string;
   contentHtml: string;
   footerNote?: string;
+  supportEmail?: string;
 }) {
-  const supportEmail = escapeHtml(process.env.CONTACT_EMAIL || process.env.RESEND_FROM_EMAIL || "office@vipgreeters.co.uk");
+  const supportEmail = escapeHtml(input.supportEmail || process.env.CONTACT_EMAIL || process.env.RESEND_FROM_EMAIL || CONTACT_EMAIL);
 
   return `
     <div style="margin:0;padding:24px;background:#f3f4f6;font-family:Arial,sans-serif;color:#111827;">
@@ -110,7 +114,9 @@ export function getOfficeNotificationRecipients(input: EmailConfigSummaryInput =
   const contactEmail = String(input.contactEmail ?? process.env.CONTACT_EMAIL ?? "").trim();
   const bookingNotificationEmail = String(input.bookingNotificationEmail ?? process.env.BOOKING_NOTIFICATION_EMAIL ?? "").trim();
 
-  const recipients = [...splitEmailRecipients(bookingNotificationEmail), ...splitEmailRecipients(contactEmail)];
+  const bookingRecipients = splitEmailRecipients(bookingNotificationEmail);
+  const fallbackRecipients = splitEmailRecipients(contactEmail);
+  const recipients = bookingRecipients.length > 0 ? bookingRecipients : fallbackRecipients;
   if (recipients.length === 0) {
     recipients.push(DEFAULT_OFFICE_INBOX);
   }
@@ -135,7 +141,7 @@ export function getTransactionalEmailConfigSummary(input: EmailConfigSummaryInpu
     fromEmail: maskEmailAddress(fromEmail),
     contactEmail: maskEmailAddress(contactEmail),
     bookingNotificationEmail: maskEmailAddress(bookingNotificationEmail),
-    officeDestination: maskEmailAddress(officeDestination),
+    officeDestination,
     missing,
   };
 }
@@ -279,7 +285,7 @@ export function buildOfficeBookingNotificationEmail(input: BookingConfirmationIn
         dateStyle: "medium",
         timeStyle: "short",
       });
-  const appUrl = String(process.env.NEXT_PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
+  const appUrl = String(process.env.NEXT_PUBLIC_BASE_URL || WEBSITE_URL || "").trim().replace(/\/$/, "");
   const adminUrl = appUrl ? `${appUrl}/administrator/signin` : "";
 
   return {
@@ -302,6 +308,7 @@ export function buildOfficeBookingNotificationEmail(input: BookingConfirmationIn
         </div>
       `,
       footerNote: "This email was sent to the business owner and office operations inbox.",
+      supportEmail: input.supportEmail,
     }),
   };
 }

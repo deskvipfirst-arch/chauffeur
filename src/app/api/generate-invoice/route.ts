@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import jsPDF from "jspdf";
+import { CONTACT_EMAIL } from "@/lib/globalConfig";
 
 export async function POST(req: Request) {
   try {
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
     // Company Info
     doc.text("Luxury Car Booking Service", 20, 50);
     doc.text("123 Business St, City, Country", 20, 60);
-    doc.text("Email: office@vipgreeters.co.uk", 20, 70);
+    doc.text(`Email: ${CONTACT_EMAIL}`, 20, 70);
 
     // Customer Info
     doc.setFontSize(12);

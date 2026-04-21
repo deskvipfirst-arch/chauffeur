@@ -1,4 +1,12 @@
 import Link from "next/link";
+import {
+    APP_NAME,
+    CONTACT_EMAIL,
+    CONTACT_PHONE,
+    OFFICE_ADDRESS_LINE_1,
+    OFFICE_ADDRESS_LINE_2,
+    OFFICE_ADDRESS_LINE_3,
+} from "@/lib/globalConfig";
 
 export function Footer() {
     return (
@@ -7,7 +15,7 @@ export function Footer() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                     <div>
                         <Link href="/" className="text-2xl font-bold">
-                            LuxuryRide
+                                {APP_NAME}
                         </Link>
                         <p className="mt-4 text-muted-foreground">
                             Providing premium chauffeur services with unparalleled comfort, reliability, and professionalism.
@@ -66,17 +74,17 @@ export function Footer() {
                     <div>
                         <h3 className="font-bold mb-4">Contact</h3>
                         <section className="not-italic text-muted-foreground">
-                            <p>8 Spout Lane North</p>
-                            <p>Heathrow</p>
-                            <p>London, TW19 6BW</p>
-                            <p className="mt-2">Phone: +44 (0) 746-767-7766</p>
-                            <p>Email: office@vipgreeters.co.uk</p>
+                               <p>{OFFICE_ADDRESS_LINE_1}</p>
+                               <p>{OFFICE_ADDRESS_LINE_2}</p>
+                               <p>{OFFICE_ADDRESS_LINE_3}</p>
+                               <p className="mt-2">Phone: {CONTACT_PHONE}</p>
+                               <p>Email: {CONTACT_EMAIL}</p>
                         </section>
                     </div>
                 </div>
                 <div className="border-t mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
                     <p className="text-sm text-muted-foreground">
-                        &copy; {new Date().getFullYear()} LuxuryRide. All rights reserved.
+                        &copy; {new Date().getFullYear()} {APP_NAME}. All rights reserved.
                     </p>
                     <div className="flex space-x-4 mt-4 md:mt-0">
                         <Link href="/terms" className="text-sm text-muted-foreground hover:text-primary transition-colors">

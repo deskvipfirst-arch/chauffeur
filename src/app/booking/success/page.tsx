@@ -30,6 +30,7 @@ function SuccessPageContent() {
   const [isChecking, setIsChecking] = useState(true);
   const [statusMessage, setStatusMessage] = useState("We are confirming your payment and updating your booking.");
   const [hasDashboard, setHasDashboard] = useState(false);
+  const [bookingRef, setBookingRef] = useState("");
 
   useEffect(() => {
     const sessionId = searchParams.get("session_id");
@@ -58,6 +59,7 @@ function SuccessPageContent() {
 
         const bookingHasDashboard = Boolean(result?.hasDashboard);
         setHasDashboard(bookingHasDashboard);
+        setBookingRef(String(result?.bookingRef || ""));
         setStatusMessage(
           result?.confirmed
             ? bookingHasDashboard
@@ -78,17 +80,19 @@ function SuccessPageContent() {
     void confirmSession();
   }, [searchParams]);
 
-  return <SuccessPageShell isChecking={isChecking} statusMessage={statusMessage} hasDashboard={hasDashboard} />;
+  return <SuccessPageShell isChecking={isChecking} statusMessage={statusMessage} hasDashboard={hasDashboard} bookingRef={bookingRef} />;
 }
 
 function SuccessPageShell({
   isChecking,
   statusMessage,
   hasDashboard,
+  bookingRef,
 }: {
   isChecking: boolean;
   statusMessage: string;
   hasDashboard: boolean;
+  bookingRef: string;
 }) {
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
@@ -134,9 +138,19 @@ function SuccessPageShell({
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-400">Support</p>
-              <p className="mt-1 font-medium text-white">Office notified</p>
+              <p className="mt-1 font-medium text-white">Email confirmation in progress</p>
             </div>
           </div>
+
+          {!isChecking && bookingRef ? (
+            <div className="mb-8 rounded-2xl border border-emerald-300/25 bg-emerald-500/10 p-4 text-left">
+              <p className="text-xs uppercase tracking-wide text-emerald-200">Booking reference</p>
+              <p className="mt-1 text-lg font-semibold text-white">{bookingRef}</p>
+              <p className="mt-2 text-sm text-emerald-100">
+                A confirmation email with this reference is being sent to your email address.
+              </p>
+            </div>
+          ) : null}
 
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
             {hasDashboard ? (

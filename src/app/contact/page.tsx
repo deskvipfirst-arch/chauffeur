@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Mail, Phone, MapPin, Clock } from "lucide-react";
+import { CONTACT_EMAIL, CONTACT_PHONE, OFFICE_ADDRESS_LINE_1, OFFICE_ADDRESS_LINE_2, OFFICE_ADDRESS_LINE_3 } from "@/lib/globalConfig";
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -91,7 +92,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">Phone</h3>
-                    <p className="text-muted-foreground">+44 (0) 746-767-7766</p>
+                    <p className="text-muted-foreground">{CONTACT_PHONE}</p>
                     <p className="text-muted-foreground">Available 24/7</p>
                   </div>
                 </div>
@@ -103,7 +104,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">Email</h3>
-                    <p className="text-muted-foreground">office@vipgreeters.co.uk</p>
+                    <p className="text-muted-foreground">{CONTACT_EMAIL}</p>
                   </div>
                 </div>
 
@@ -114,9 +115,9 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">Office Address</h3>
-                    <p className="text-muted-foreground">8 Spout Lane North</p>
-                    <p className="text-muted-foreground">Heathrow</p>
-                    <p className="text-muted-foreground">London, TW19 6BW</p>
+                    <p className="text-muted-foreground">{OFFICE_ADDRESS_LINE_1}</p>
+                    <p className="text-muted-foreground">{OFFICE_ADDRESS_LINE_2}</p>
+                    <p className="text-muted-foreground">{OFFICE_ADDRESS_LINE_3}</p>
                   </div>
                 </div>
 

@@ -122,7 +122,17 @@ async function getAppSetting(key: string) {
 
   if (error) {
     if (isMissingTableError(error)) {
-      return null;
+      const { data: legacyData, error: legacyError } = await supabaseAdmin
+        .from(COLLECTIONS.SERVICE_RATES)
+        .select("id, description")
+        .eq("id", key)
+        .maybeSingle();
+
+      if (legacyError) {
+        return null;
+      }
+
+      return typeof legacyData?.description === "string" ? legacyData.description.trim() : null;
     }
     throw error;
   }
@@ -137,12 +147,32 @@ async function setAppSetting(key: string, value: string) {
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
-    await supabaseAdmin.from(APP_SETTINGS_TABLE).upsert(nextPayload, { onConflict: "key" })
-  );
+  try {
+    const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
+      await supabaseAdmin.from(APP_SETTINGS_TABLE).upsert(nextPayload, { onConflict: "key" })
+    );
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    if (!isMissingTableError(error as { code?: string; message?: string; details?: string } | null)) {
+      throw error;
+    }
 
-  if (error) {
-    throw error;
+    const legacyPayload = sanitizeMutationPayload({
+      id: key,
+      type: "config",
+      baseRate: 0,
+      description: value,
+    });
+
+    const { error: legacyError } = await runMutationWithSchemaFallback(legacyPayload, async (nextPayload) =>
+      await supabaseAdmin.from(COLLECTIONS.SERVICE_RATES).upsert(nextPayload, { onConflict: "id" })
+    );
+
+    if (legacyError) {
+      throw legacyError;
+    }
   }
 
   return value;

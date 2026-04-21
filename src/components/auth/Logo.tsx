@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/lib/globalConfig";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
@@ -11,11 +12,11 @@ const Logo = ({ className }: LogoProps) => {
     <div className={cn("flex items-center justify-center", className)}>
       <div className="bg-brand-600 text-white font-bold text-xl w-10 h-10 rounded-lg flex items-center justify-center">
         <Image src={logoURL}
-          alt=""
+          alt={APP_NAME}
           height={48}
           width={48} />
       </div>
-      <span className="ml-2 text-xl font-bold text-gray-900">London Chauffeur Hire</span>
+      <span className="ml-2 text-xl font-bold text-gray-900">{APP_NAME}</span>
     </div>
   );
 };

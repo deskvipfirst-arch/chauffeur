@@ -24,7 +24,7 @@ export function MobileNav() {
           <div className="container h-full flex flex-col">
             <div className="flex h-16 items-center justify-between">
               <Link href="/" className="text-2xl font-bold" onClick={() => setIsOpen(false)}>
-                LuxuryRide
+                VIP Greeters
               </Link>
               <Button
                 variant="ghost"

@@ -19,6 +19,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { getUserFirstName } from "@/lib/userDisplay";
+import { APP_NAME, CONTACT_EMAIL, CONTACT_PHONE } from "@/lib/globalConfig";
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
@@ -94,11 +95,11 @@ export function Header() {
             <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4">
               <div className="flex text-sm">
                 <Phone className="h-4 w-4 mr-2" />
-                <span>+44 (0) 7467677766</span>
+                <span>{CONTACT_PHONE}</span>
               </div>
               <div className="flex text-sm">
                 <Mail className="h-4 w-4 mr-2" />
-                <span>office@vipgreeters.co.uk</span>
+                <span>{CONTACT_EMAIL}</span>
               </div>
             </div>
             <div className="hidden md:block">
@@ -126,9 +127,7 @@ export function Header() {
                 className="mr-2"
               />
               <span className="text-2xl font-bold">
-                <span className="text-[#1D3557]">London</span>
-                <span className="text-[#DAA520]">Chauffeur</span>
-                <span className="text-[#1D3557]">Hire</span>
+                <span className="text-[#1D3557]">{APP_NAME}</span>
               </span>
             </Link>
           </div>

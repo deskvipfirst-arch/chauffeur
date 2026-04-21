@@ -89,6 +89,8 @@ export async function POST(req: Request) {
     }
 
     if (isPaid && !alreadyPaid && canSendTransactionalEmail()) {
+      const storedOfficeEmail = await getOfficeNotificationEmailSetting();
+      const officeRecipients = getOfficeNotificationRecipients({ bookingNotificationEmail: storedOfficeEmail ?? undefined });
       const serviceType = String(bookingData.service_type || bookingData.serviceType || "Booking")
         .replace(/([A-Z])/g, " $1")
         .replace(/^./, (value) => value.toUpperCase())
@@ -114,10 +116,8 @@ export async function POST(req: Request) {
         pickupLocation: String(bookingData.pickup_location || bookingData.pickupLocation || "TBC"),
         dropoffLocation: String(bookingData.dropoff_location || bookingData.dropoffLocation || ""),
         amount: Number(bookingData.amount || (session.amount_total || 0) / 100 || 0),
+        supportEmail: officeRecipients[0],
       });
-
-      const storedOfficeEmail = await getOfficeNotificationEmailSetting();
-      const officeRecipients = getOfficeNotificationRecipients({ bookingNotificationEmail: storedOfficeEmail ?? undefined });
 
       const deliveries = [
         customerEmail && (bookingData.email || session.customer_details?.email)
@@ -156,6 +156,7 @@ export async function POST(req: Request) {
       confirmed: isPaid,
       statusPromoted,
       hasDashboard,
+      bookingRef: String(bookingData.booking_ref || ""),
     });
   } catch (error) {
     const message = getPaymentSyncErrorMessage(error);

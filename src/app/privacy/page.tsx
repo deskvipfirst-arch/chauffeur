@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { CONTACT_EMAIL, APP_NAME } from "@/lib/globalConfig";
 
 const PrivacyPolicy = () => {
   return (
@@ -11,7 +12,7 @@ const PrivacyPolicy = () => {
       <section className="mb-6">
         <h2 className="text-xl font-semibold mb-2">1. Introduction</h2>
         <p>
-          Welcome to VIP Greeters. Your privacy is important to us. This Privacy Policy
+          Welcome to {APP_NAME}. Your privacy is important to us. This Privacy Policy
           outlines how we collect, use, and protect your information when you use our website
           and services.
         </p>
@@ -78,7 +79,7 @@ const PrivacyPolicy = () => {
         <h2 className="text-xl font-semibold mb-2">8. Contact Us</h2>
         <p>
           If you have any questions about this Privacy Policy, please contact us at:
-          <br /> <strong>Email:</strong> office@vipgreeters.co.uk
+          <br /> <strong>Email:</strong> {CONTACT_EMAIL}
         </p>
       </section>
     </div>

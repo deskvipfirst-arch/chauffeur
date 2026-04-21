@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { CONTACT_EMAIL } from "@/lib/globalConfig";
 
 const TermsAndConditions = () => {
   return (
@@ -76,7 +77,7 @@ const TermsAndConditions = () => {
         <h2 className="text-xl font-semibold mb-2">8. Contact Us</h2>
         <p>
           If you have any questions about these Terms and Conditions, please contact us at:
-          <br /> <strong>Email:</strong> office@vipgreeters.co.uk
+          <br /> <strong>Email:</strong> {CONTACT_EMAIL}
         </p>
       </section>
     </div>
