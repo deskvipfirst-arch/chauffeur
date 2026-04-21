@@ -65,13 +65,13 @@ export function Footer() {
                     </div>
                     <div>
                         <h3 className="font-bold mb-4">Contact</h3>
-                        <address className="not-italic text-muted-foreground">
-                            <p>123 Luxury Drive</p>
-                            <p>Suite 456</p>
-                            <p>London, TW13 6AR</p>
+                        <section className="not-italic text-muted-foreground">
+                            <p>8 Spout Lane North</p>
+                            <p>Heathrow</p>
+                            <p>London, TW19 6BW</p>
                             <p className="mt-2">Phone: +44 (0) 746-767-7766</p>
-                            <p>Email: info@yourchauffeurbusiness.com</p>
-                        </address>
+                            <p>Email: office@vipgreeters.co.uk</p>
+                        </section>
                     </div>
                 </div>
                 <div className="border-t mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">

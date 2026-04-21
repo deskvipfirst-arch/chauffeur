@@ -6,12 +6,12 @@ const PrivacyPolicy = () => {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
       <h1 className="text-3xl font-bold mb-6">Privacy Policy</h1>
-      <p className="mb-4">Last Updated: [Insert Date]</p>
+      <p className="mb-4">Last Updated: 21 April 2026</p>
 
       <section className="mb-6">
         <h2 className="text-xl font-semibold mb-2">1. Introduction</h2>
         <p>
-          Welcome to [Your Company Name]. Your privacy is important to us. This Privacy Policy
+          Welcome to VIP Greeters. Your privacy is important to us. This Privacy Policy
           outlines how we collect, use, and protect your information when you use our website
           and services.
         </p>
@@ -78,7 +78,7 @@ const PrivacyPolicy = () => {
         <h2 className="text-xl font-semibold mb-2">8. Contact Us</h2>
         <p>
           If you have any questions about this Privacy Policy, please contact us at:
-          <br /> <strong>Email:</strong> support@[yourdomain].com
+          <br /> <strong>Email:</strong> office@vipgreeters.co.uk
         </p>
       </section>
     </div>

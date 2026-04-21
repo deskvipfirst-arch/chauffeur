@@ -6,12 +6,12 @@ const TermsAndConditions = () => {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
       <h1 className="text-3xl font-bold mb-6">Terms and Conditions</h1>
-      <p className="mb-4">Last Updated: [Insert Date]</p>
+      <p className="mb-4">Last Updated: 21 April 2026</p>
 
       <section className="mb-6">
         <h2 className="text-xl font-semibold mb-2">1. Introduction</h2>
         <p>
-          Welcome to [Your Company Name]. By accessing and using our services, you agree to be
+          Welcome to VIP Greeters. By accessing and using our services, you agree to be
           bound by these Terms and Conditions. If you do not agree, please do not use our
           services.
         </p>
@@ -76,7 +76,7 @@ const TermsAndConditions = () => {
         <h2 className="text-xl font-semibold mb-2">8. Contact Us</h2>
         <p>
           If you have any questions about these Terms and Conditions, please contact us at:
-          <br /> <strong>Email:</strong> support@[yourdomain].com
+          <br /> <strong>Email:</strong> office@vipgreeters.co.uk
         </p>
       </section>
     </div>

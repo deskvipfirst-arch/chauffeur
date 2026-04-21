@@ -98,12 +98,12 @@ export function Header() {
               </div>
               <div className="flex text-sm">
                 <Mail className="h-4 w-4 mr-2" />
-                <span>info@yourchauffeurbusiness.com</span>
+                <span>office@vipgreeters.co.uk</span>
               </div>
             </div>
             <div className="hidden md:block">
               <Link
-                href="/#estimate"
+                href="/booking"
                 className="text-sm font-medium hover:underline"
               >
                 Book Now

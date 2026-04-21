@@ -6,6 +6,14 @@ import {
   isLegacyBookingStatusConstraintError,
   isStripeSessionPaid,
 } from "@/lib/stripePaymentStatus";
+import {
+  buildBookingConfirmationEmail,
+  buildOfficeBookingNotificationEmail,
+  canSendTransactionalEmail,
+  getOfficeNotificationRecipients,
+  sendTransactionalEmail,
+} from "@/lib/email";
+import { getOfficeNotificationEmailSetting } from "@/lib/supabase-admin";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -54,6 +62,8 @@ export async function POST(req: Request) {
     }
 
     const bookingDoc = querySnapshot.docs[0];
+    const bookingData = bookingDoc.data?.() || {};
+    const alreadyPaid = String(bookingData.payment_status || "").toLowerCase() === "paid";
     const isPaid = isStripeSessionPaid(session);
     let statusPromoted = false;
 
@@ -78,6 +88,66 @@ export async function POST(req: Request) {
       }
     }
 
+    if (isPaid && !alreadyPaid && canSendTransactionalEmail()) {
+      const serviceType = String(bookingData.service_type || bookingData.serviceType || "Booking")
+        .replace(/([A-Z])/g, " $1")
+        .replace(/^./, (value) => value.toUpperCase())
+        .trim();
+
+      const customerEmail = buildBookingConfirmationEmail({
+        fullName: String(bookingData.full_name || bookingData.fullName || session.customer_details?.name || "Customer"),
+        email: String(bookingData.email || session.customer_details?.email || ""),
+        bookingRef: String(bookingData.booking_ref || bookingDoc.id),
+        serviceType,
+        dateTime: String(bookingData.date_time || bookingData.dateTime || new Date().toISOString()),
+        pickupLocation: String(bookingData.pickup_location || bookingData.pickupLocation || "TBC"),
+        dropoffLocation: String(bookingData.dropoff_location || bookingData.dropoffLocation || ""),
+        amount: Number(bookingData.amount || (session.amount_total || 0) / 100 || 0),
+      });
+
+      const officeEmail = buildOfficeBookingNotificationEmail({
+        fullName: String(bookingData.full_name || bookingData.fullName || session.customer_details?.name || "Customer"),
+        email: String(bookingData.email || session.customer_details?.email || ""),
+        bookingRef: String(bookingData.booking_ref || bookingDoc.id),
+        serviceType,
+        dateTime: String(bookingData.date_time || bookingData.dateTime || new Date().toISOString()),
+        pickupLocation: String(bookingData.pickup_location || bookingData.pickupLocation || "TBC"),
+        dropoffLocation: String(bookingData.dropoff_location || bookingData.dropoffLocation || ""),
+        amount: Number(bookingData.amount || (session.amount_total || 0) / 100 || 0),
+      });
+
+      const storedOfficeEmail = await getOfficeNotificationEmailSetting();
+      const officeRecipients = getOfficeNotificationRecipients({ bookingNotificationEmail: storedOfficeEmail ?? undefined });
+
+      const deliveries = [
+        customerEmail && (bookingData.email || session.customer_details?.email)
+          ? sendTransactionalEmail({
+              to: String(bookingData.email || session.customer_details?.email || ""),
+              subject: customerEmail.subject,
+              text: customerEmail.text,
+              html: customerEmail.html,
+            })
+          : Promise.resolve(null),
+        officeRecipients.length > 0
+          ? sendTransactionalEmail({
+              to: officeRecipients,
+              subject: officeEmail.subject,
+              text: officeEmail.text,
+              html: officeEmail.html,
+            })
+          : Promise.resolve(null),
+      ];
+
+      const results = await Promise.allSettled(deliveries);
+      results.forEach((result) => {
+        if (result.status === "rejected") {
+          console.error("Booking email delivery failed:", result.reason);
+        }
+      });
+    }
+
+    const hasDashboard = Boolean(bookingData.user_id);
+
     return NextResponse.json({
       ok: true,
       bookingId: bookingDoc.id,
@@ -85,6 +155,7 @@ export async function POST(req: Request) {
       status: session.status,
       confirmed: isPaid,
       statusPromoted,
+      hasDashboard,
     });
   } catch (error) {
     const message = getPaymentSyncErrorMessage(error);

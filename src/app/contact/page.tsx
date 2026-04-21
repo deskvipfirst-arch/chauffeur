@@ -103,8 +103,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">Email</h3>
-                    <p className="text-muted-foreground">info@yourchauffeurbusiness.com</p>
-                    <p className="text-muted-foreground">bookings@yourchauffeurbusiness.com</p>
+                    <p className="text-muted-foreground">office@vipgreeters.co.uk</p>
                   </div>
                 </div>
 
@@ -115,9 +114,9 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">Office Address</h3>
-                    <p className="text-muted-foreground">123 Luxury Drive</p>
-                    <p className="text-muted-foreground">Suite 456</p>
-                    <p className="text-muted-foreground">London, TW13 6AR</p>
+                    <p className="text-muted-foreground">8 Spout Lane North</p>
+                    <p className="text-muted-foreground">Heathrow</p>
+                    <p className="text-muted-foreground">London, TW19 6BW</p>
                   </div>
                 </div>
 

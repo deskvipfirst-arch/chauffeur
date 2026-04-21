@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     // Company Info
     doc.text("Luxury Car Booking Service", 20, 50);
     doc.text("123 Business St, City, Country", 20, 60);
-    doc.text("Email: support@luxurycars.com", 20, 70);
+    doc.text("Email: office@vipgreeters.co.uk", 20, 70);
 
     // Customer Info
     doc.setFontSize(12);

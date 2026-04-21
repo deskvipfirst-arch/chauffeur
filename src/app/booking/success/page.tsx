@@ -29,6 +29,7 @@ function SuccessPageContent() {
   const searchParams = useSearchParams();
   const [isChecking, setIsChecking] = useState(true);
   const [statusMessage, setStatusMessage] = useState("We are confirming your payment and updating your booking.");
+  const [hasDashboard, setHasDashboard] = useState(false);
 
   useEffect(() => {
     const sessionId = searchParams.get("session_id");
@@ -55,14 +56,20 @@ function SuccessPageContent() {
           throw new Error(result?.error || result?.message || "Could not confirm payment.");
         }
 
+        const bookingHasDashboard = Boolean(result?.hasDashboard);
+        setHasDashboard(bookingHasDashboard);
         setStatusMessage(
           result?.confirmed
-            ? "Your payment has been confirmed and your dashboard is being updated."
-            : "Your payment is still processing. Please check your dashboard again shortly."
+            ? bookingHasDashboard
+              ? "Your payment has been confirmed and your dashboard is being updated."
+              : "Your payment has been confirmed and your booking is now in our dispatch queue."
+            : bookingHasDashboard
+              ? "Your payment is still processing. Please check your dashboard again shortly."
+              : "Your payment is still processing. Please keep this page and check your email for updates shortly."
         );
       } catch (error) {
         console.error("Error confirming payment session:", error);
-        setStatusMessage("We could not verify the payment automatically just yet. Please open your dashboard and refresh once.");
+        setStatusMessage("We could not verify the payment automatically just yet. Please keep your confirmation page and contact support if needed.");
       } finally {
         setIsChecking(false);
       }
@@ -71,15 +78,17 @@ function SuccessPageContent() {
     void confirmSession();
   }, [searchParams]);
 
-  return <SuccessPageShell isChecking={isChecking} statusMessage={statusMessage} />;
+  return <SuccessPageShell isChecking={isChecking} statusMessage={statusMessage} hasDashboard={hasDashboard} />;
 }
 
 function SuccessPageShell({
   isChecking,
   statusMessage,
+  hasDashboard,
 }: {
   isChecking: boolean;
   statusMessage: string;
+  hasDashboard: boolean;
 }) {
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
@@ -121,7 +130,7 @@ function SuccessPageShell({
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-400">Next step</p>
-              <p className="mt-1 font-medium text-white">Review your booking</p>
+              <p className="mt-1 font-medium text-white">{hasDashboard ? "Review your booking" : "Keep this confirmation for your records"}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-400">Support</p>
@@ -130,13 +139,23 @@ function SuccessPageShell({
           </div>
 
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
-            <Link
-              href="/user/dashboard"
-              className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-6 py-3 font-semibold text-slate-950 transition hover:bg-emerald-400"
-            >
-              Return to Dashboard
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
+            {hasDashboard ? (
+              <Link
+                href="/user/dashboard"
+                className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-6 py-3 font-semibold text-slate-950 transition hover:bg-emerald-400"
+              >
+                Return to Dashboard
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            ) : (
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-6 py-3 font-semibold text-slate-950 transition hover:bg-emerald-400"
+              >
+                Return to Home
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            )}
             <Link
               href="/contact"
               className="inline-flex items-center justify-center rounded-2xl border border-white/15 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
