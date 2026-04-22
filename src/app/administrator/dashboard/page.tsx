@@ -708,7 +708,7 @@ export default function AdminDashboard() {
                 <div className="bg-white rounded-lg shadow-md overflow-hidden">
                   <div className="p-4 border-b">
                     <h3 className="text-lg font-semibold text-gray-900">Dispatch Board</h3>
-                    <p className="text-sm text-gray-500">Assign greeters and track each booking through the service lifecycle.</p>
+                    <p className="text-sm text-gray-500">Confirm bookings, assign greeters, and track each job through to completion.</p>
                   </div>
 
                   {isLoadingBookings ? (
@@ -800,8 +800,8 @@ export default function AdminDashboard() {
             {activeTab === "heathrow" && (
               <div className="space-y-6">
                 <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-lg font-semibold text-gray-900">Heathrow Monitoring Board</h3>
-                  <p className="text-sm text-gray-500">Track Heathrow and terminal-related jobs as they move through the live service workflow.</p>
+                  <h3 className="text-lg font-semibold text-gray-900">Heathrow Operations Monitoring Board</h3>
+                  <p className="text-sm text-gray-500">Designed for Heathrow airport operations members to monitor live jobs and service readiness.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -811,7 +811,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow-md">
                     <p className="text-sm text-gray-500">In Progress</p>
-                    <p className="text-2xl font-bold text-gray-900">{heathrowBookings.filter((job) => ["assigned", "accepted", "picked_up"].includes(job.status)).length}</p>
+                    <p className="text-2xl font-bold text-gray-900">{heathrowBookings.filter((job) => ["assigned", "accepted", "picked_up"].includes(String(job.driver_status || job.status || ""))).length}</p>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow-md">
                     <p className="text-sm text-gray-500">Completed</p>

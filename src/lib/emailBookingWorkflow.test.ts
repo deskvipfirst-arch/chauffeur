@@ -32,7 +32,7 @@ describe("booking email workflow", () => {
       amount: 245,
     });
 
-    expect(result.subject).toContain("New paid booking");
+    expect(result.subject).toContain("Office action needed");
     expect(result.html).toContain("alex@example.com");
     expect(result.html).toContain("VIP Greeters");
   });

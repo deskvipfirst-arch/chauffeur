@@ -80,7 +80,7 @@ export default function ContactPage() {
             <div>
               <h2 className="text-3xl font-bold mb-6">Get in Touch</h2>
               <p className="text-muted-foreground mb-8">
-                We&apos;re here to answer any questions you may have about our chauffeur services. Reach out to us and we&apos;ll
+                We&apos;re here to answer any questions you may have about our services. Reach out to us and we&apos;ll
                 respond as soon as we can.
               </p>
 

@@ -136,9 +136,8 @@ function SignUpContent() {
           <Link href="/" className="flex items-center">
             <Image src="/favicon.ico" alt="Logo" width={40} height={40} className="mr-2" />
             <span className="text-2xl font-bold">
-              <span className="text-[#1D3557]">London</span>
-              <span className="text-[#DAA520]">Chauffeur</span>
-              <span className="text-[#1D3557]">Hire</span>
+              <span className="text-[#1D3557]">VIP</span>
+              <span className="text-[#DAA520]">Greeters</span>
             </span>
           </Link>
         </div>

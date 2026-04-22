@@ -1,7 +1,7 @@
 export function canonicalizeUserRole(role: string | null | undefined): string {
   const normalized = String(role ?? "user").trim().toLowerCase();
 
-  if (["admin", "administrator", "office"].includes(normalized)) {
+  if (["admin", "administrator", "office", "heathrow", "heathrow_monitor", "airport_ops"].includes(normalized)) {
     return "admin";
   }
 

@@ -190,9 +190,8 @@ export default function SigninClient({
         <Link href={"/"} className="flex items-center justify-center">
           <Image src={logoURL} alt="" height={48} width={48} />
           <Label className="text-[32px] font-bold tracking-wide ml-4">
-            <span className="text-[#1D3557]">London</span>
-            <span className="text-[#DAA520]">Chauffeur</span>
-            <span className="text-[#1D3557]">Hire</span>
+            <span className="text-[#1D3557]">VIP</span>
+            <span className="text-[#DAA520]">Greeters</span>
           </Label>
         </Link>
       </div>

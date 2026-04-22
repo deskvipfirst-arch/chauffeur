@@ -16,7 +16,7 @@ export default function AboutPage() {
             <div>
               <h2 className="text-3xl font-bold mb-6">Our Story</h2>
               <p className="text-muted-foreground mb-4">
-                Founded in 2010, our chauffeur service has been providing premium transportation solutions to discerning
+                Our service has been providing premium transportation solutions to discerning
                 clients for over a decade. What started as a small fleet of luxury vehicles has grown into one of the
                 most respected chauffeur companies in the region.
               </p>
@@ -91,7 +91,7 @@ export default function AboutPage() {
               </div>
               <h3 className="text-xl font-bold mb-2">Our Vision</h3>
               <p className="text-muted-foreground">
-                To be the leading chauffeur service known for setting the industry standard in luxury transportation and
+                To be the leading meet and greet service known for setting the industry standard in luxury transportation and
                 customer care.
               </p>
             </div>

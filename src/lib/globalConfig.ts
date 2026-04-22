@@ -1,5 +1,8 @@
 export const APP_NAME = "VIP Greeters";
 export const APP_SUBTITLE = "Your Personal Concierge Service for Unforgettable Experiences";
+export const APP_DESCRIPTION = "Experience the ultimate in convenience and luxury with our premium meet and greet services. Our professional team will ensure a seamless and personalized experience, whether you're arriving at the airport or attending a special event. Enjoy VIP treatment, including luggage assistance, expedited check-in, and personalized greetings, all designed to make your journey effortless and memorable.";
+export const APP_TITLE = "VIP Greeters - Premium Meet and Greet Services";
+
 
 export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || "office@vipgreeters.co.uk";
 export const CONTACT_PHONE = process.env.NEXT_PUBLIC_CONTACT_PHONE || "+44 (0) 746-767-7766";

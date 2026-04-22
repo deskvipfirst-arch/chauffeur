@@ -3,6 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { PriceEstimator } from "@/components/price-estimator/PriceEstimator"
 import { Suspense } from "react"
+import { APP_TITLE, APP_DESCRIPTION } from "@/lib/globalConfig"
 
 
 export default function Home() {
@@ -20,9 +21,9 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
             {/* Left Side - Text and Button */}
             <div className="flex flex-col justify-center text-white">
-              <h1 className="text-4xl md:text-6xl font-bold mb-4">Premium Chauffeur Services</h1>
+              <h1 className="text-4xl md:text-6xl font-bold mb-4">{APP_TITLE}</h1>
               <p className="text-xl md:text-2xl mb-8 max-w-xl">
-                Experience luxury transportation with our professional chauffeur services
+                {APP_DESCRIPTION}
               </p>
               <Link
                 href="#estimate"

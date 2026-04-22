@@ -18,7 +18,7 @@ export function Footer() {
                                 {APP_NAME}
                         </Link>
                         <p className="mt-4 text-muted-foreground">
-                            Providing premium chauffeur services with unparalleled comfort, reliability, and professionalism.
+                            Providing premium meet and greet services with unparalleled comfort, reliability, and professionalism.
                         </p>
                     </div>
                     <div>

@@ -6,6 +6,7 @@ describe("admin role compatibility", () => {
   it("maps legacy driver-style roles to greeter access", () => {
     expect(isAllowedRole("driver", ["greeter"])).toBe(true);
     expect(isAllowedRole("office", ["admin"])).toBe(true);
+    expect(canonicalizeUserRole("heathrow_monitor")).toBe("admin");
     expect(isAllowedRole("user", ["admin"])).toBe(false);
   });
 

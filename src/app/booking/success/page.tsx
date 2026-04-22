@@ -63,8 +63,8 @@ function SuccessPageContent() {
         setStatusMessage(
           result?.confirmed
             ? bookingHasDashboard
-              ? "Your payment has been confirmed and your dashboard is being updated."
-              : "Your payment has been confirmed and your booking is now in our dispatch queue."
+              ? "Your payment has been confirmed. Our booking team will confirm your booking and assign a greeter at least 24 hours before service time."
+              : "Your payment has been confirmed. Our booking team will confirm your booking and assign a greeter at least 24 hours before service time."
             : bookingHasDashboard
               ? "Your payment is still processing. Please check your dashboard again shortly."
               : "Your payment is still processing. Please keep this page and check your email for updates shortly."
@@ -134,7 +134,7 @@ function SuccessPageShell({
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-400">Next step</p>
-              <p className="mt-1 font-medium text-white">{hasDashboard ? "Review your booking" : "Keep this confirmation for your records"}</p>
+              <p className="mt-1 font-medium text-white">{hasDashboard ? "Booking team review and greeter assignment" : "Booking team review and greeter assignment"}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-slate-400">Support</p>
@@ -147,7 +147,7 @@ function SuccessPageShell({
               <p className="text-xs uppercase tracking-wide text-emerald-200">Booking reference</p>
               <p className="mt-1 text-lg font-semibold text-white">{bookingRef}</p>
               <p className="mt-2 text-sm text-emerald-100">
-                A confirmation email with this reference is being sent to your email address.
+                A confirmation email with this reference is being sent. It confirms payment and explains when your greeter assignment will be shared.
               </p>
             </div>
           ) : null}

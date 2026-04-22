@@ -257,20 +257,23 @@ export function buildBookingConfirmationEmail(input: BookingConfirmationInput) {
       });
 
   return {
-    subject: `Booking confirmed: ${input.bookingRef}`,
-    text: `Hello ${input.fullName}, your booking ${input.bookingRef} has been confirmed. Service: ${input.serviceType}. Pickup: ${input.pickupLocation}. ${input.dropoffLocation ? `Drop-off: ${input.dropoffLocation}. ` : ""}Date: ${formattedDate}. Amount: £${input.amount.toFixed(2)}.`,
+    subject: `Payment confirmed: ${input.bookingRef}`,
+    text: `Hello ${input.fullName}, your payment for booking ${input.bookingRef} has been confirmed. Service: ${input.serviceType}. Pickup: ${input.pickupLocation}. ${input.dropoffLocation ? `Drop-off: ${input.dropoffLocation}. ` : ""}Date: ${formattedDate}. Amount paid: £${input.amount.toFixed(2)}. Our booking team will now review your booking and assign your greeter at least 24 hours before your booked time.`,
     html: buildEmailShell({
-      title: "Your booking is confirmed",
-      intro: `Hello ${input.fullName}, thank you for booking with us. Your chauffeur request has been confirmed.`,
+      title: "Your payment is confirmed",
+      intro: `Hello ${input.fullName}, thank you for booking with us. Your payment has been confirmed and your booking is now queued for office review.`,
       contentHtml: `
         <p style="margin:0 0 8px;"><strong>Booking reference:</strong> ${escapeHtml(input.bookingRef)}</p>
         <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeHtml(input.serviceType)}</p>
         <p style="margin:0 0 8px;"><strong>Date and time:</strong> ${escapeHtml(formattedDate)}</p>
         <p style="margin:0 0 8px;"><strong>Pickup:</strong> ${escapeHtml(input.pickupLocation)}</p>
         ${input.dropoffLocation ? `<p style="margin:0 0 8px;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
-        <p style="margin:0;"><strong>Amount paid:</strong> £${input.amount.toFixed(2)}</p>
+        <p style="margin:0 0 12px;"><strong>Amount paid:</strong> £${input.amount.toFixed(2)}</p>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;">Our office team will confirm your booking and assign a greeter at least 24 hours before your service time. You will receive another update when your greeter is assigned.</p>
+        </div>
       `,
-      footerNote: "Your VIP Greeters team will be in touch if anything else is needed.",
+      footerNote: "VIP Greeters booking team will send assignment details once your greeter is scheduled.",
     }),
   };
 }
@@ -289,10 +292,10 @@ export function buildOfficeBookingNotificationEmail(input: BookingConfirmationIn
 
   return {
     subject: `Office action needed: ${input.bookingRef}`,
-    text: `New paid booking received. Ref: ${input.bookingRef}. Customer: ${input.fullName} (${input.email}). Service: ${input.serviceType}. Date: ${formattedDate}. Pickup: ${input.pickupLocation}. ${input.dropoffLocation ? `Drop-off: ${input.dropoffLocation}. ` : ""}Amount: £${input.amount.toFixed(2)}. Please review it in the office dashboard${adminUrl ? `: ${adminUrl}` : "."}`,
+    text: `New paid booking received. Ref: ${input.bookingRef}. Customer: ${input.fullName} (${input.email}). Service: ${input.serviceType}. Date: ${formattedDate}. Pickup: ${input.pickupLocation}. ${input.dropoffLocation ? `Drop-off: ${input.dropoffLocation}. ` : ""}Amount: £${input.amount.toFixed(2)}. Office workflow: confirm booking and assign a greeter at least 24 hours before service time. Please review it in the office dashboard${adminUrl ? `: ${adminUrl}` : "."}`,
     html: buildEmailShell({
       title: "Booking received for office review",
-      intro: "A customer payment has cleared and the office team can now review, confirm, update, or cancel this booking.",
+      intro: "A customer payment has cleared. The office team should now confirm this booking and assign an available greeter.",
       contentHtml: `
         <p style="margin:0 0 8px;"><strong>Reference:</strong> ${escapeHtml(input.bookingRef)}</p>
         <p style="margin:0 0 8px;"><strong>Customer:</strong> ${customer}</p>
@@ -302,7 +305,7 @@ export function buildOfficeBookingNotificationEmail(input: BookingConfirmationIn
         ${input.dropoffLocation ? `<p style="margin:0 0 8px;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
         <p style="margin:0 0 12px;"><strong>Amount paid:</strong> £${input.amount.toFixed(2)}</p>
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
-          <p style="margin:0 0 8px;"><strong>Next step:</strong> Open the office dashboard and review this booking.</p>
+          <p style="margin:0 0 8px;"><strong>Next step:</strong> Confirm booking and assign a greeter at least 24 hours before service time.</p>
           ${adminUrl ? `<p style="margin:0;"><a href="${escapeHtml(adminUrl)}" style="color:${BRAND_DARK};font-weight:700;">Open office dashboard</a></p>` : ""}
         </div>
       `,

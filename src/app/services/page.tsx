@@ -72,11 +72,11 @@ export default function ServicesPage() {
       <section className="py-16">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Premium Chauffeur Services</h2>
+            <h2 className="text-3xl font-bold mb-4">Premium Meet and Greet Services</h2>
             <p className="text-muted-foreground">
-              We offer a comprehensive range of luxury chauffeur services tailored to meet your specific requirements.
+              We offer a comprehensive range of luxury meet and greet services tailored to meet your specific requirements.
               Whether you need airport transfers, corporate travel, or special event transportation, our professional
-              chauffeurs and luxury fleet are at your service.
+              meet and greet team and luxury fleet are at your service.
             </p>
           </div>
 
@@ -93,7 +93,7 @@ export default function ServicesPage() {
               <div className="p-6">
                 <h3 className="text-2xl font-bold mb-2">Airport Transfers</h3>
                 <p className="text-muted-foreground mb-4">
-                  Start and end your journey in comfort with our reliable airport transfer service. Our chauffeurs
+                  Start and end your journey in comfort with our reliable airport transfer service. Our meet and greet team
                   monitor flight arrivals in real-time to ensure they are waiting for you, even if your flight is
                   delayed.
                 </p>
@@ -184,7 +184,7 @@ export default function ServicesPage() {
               <div className="p-6">
                 <h3 className="text-2xl font-bold mb-2">Corporate Travel</h3>
                 <p className="text-muted-foreground mb-4">
-                  Make a lasting impression with our corporate chauffeur services. We provide reliable, discreet
+                  Make a lasting impression with our corporate meet and greet services. We provide reliable, discreet
                   transportation for executives, clients, and business partners.
                 </p>
                 <ul className="space-y-2 mb-6">
@@ -274,7 +274,7 @@ export default function ServicesPage() {
               <div className="p-6">
                 <h3 className="text-2xl font-bold mb-2">Special Events</h3>
                 <p className="text-muted-foreground mb-4">
-                  Make your special day even more memorable with our luxury chauffeur services for weddings,
+                  Make your special day even more memorable with our luxury meet and greet services for weddings,
                   anniversaries, and other important occasions.
                 </p>
                 <ul className="space-y-2 mb-6">
@@ -361,7 +361,7 @@ export default function ServicesPage() {
               <div className="p-6">
                 <h3 className="text-2xl font-bold mb-2">City Tours</h3>
                 <p className="text-muted-foreground mb-4">
-                  Explore the city in style with our personalized sightseeing tours. Our knowledgeable chauffeurs double
+                  Explore the city in style with our personalized sightseeing tours. Our knowledgeable chauffeus double
                   as guides to show you the best attractions and hidden gems.
                 </p>
                 <ul className="space-y-2 mb-6">

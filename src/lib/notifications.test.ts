@@ -49,4 +49,22 @@ describe("notifications", () => {
     expect(alerts).toHaveLength(3);
     expect(alerts[0].audience).toBe("admin");
   });
+
+  it("flags confirmed bookings that still need greeter assignment", () => {
+    const soon = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    const alerts = buildOperationsAlerts({
+      bookings: [
+        {
+          booking_ref: "CHAUF-3",
+          status: "confirmed",
+          driver_status: "unassigned",
+          date_time: soon,
+        },
+      ],
+      invoices: [],
+    });
+
+    expect(alerts.some((alert) => alert.title === "Confirmed bookings awaiting assignment")).toBe(true);
+    expect(alerts.some((alert) => alert.title === "Urgent assignment window")).toBe(true);
+  });
 });

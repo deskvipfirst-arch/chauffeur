@@ -51,10 +51,43 @@ export function buildOperationsAlerts({
   bookings,
   invoices,
 }: {
-  bookings: Array<{ booking_ref?: string | null; driver_status?: string | null; status?: string | null }>;
+  bookings: Array<{ booking_ref?: string | null; driver_status?: string | null; status?: string | null; date_time?: string | null }>;
   invoices: Array<{ booking_ref?: string | null; office_status?: string | null; amount?: number | null }>;
 }) {
   const alerts: AppNotification[] = [];
+
+  const now = Date.now();
+  const confirmedUnassigned = bookings.filter((booking) => {
+    const bookingStatus = String(booking.status || "").toLowerCase();
+    const driverStatus = String(booking.driver_status || "unassigned").toLowerCase();
+    return bookingStatus === "confirmed" && (!driverStatus || driverStatus === "unassigned");
+  });
+
+  if (confirmedUnassigned.length > 0) {
+    alerts.push({
+      title: "Confirmed bookings awaiting assignment",
+      message: `${confirmedUnassigned.length} confirmed booking(s) still need a greeter assignment.`,
+      audience: "admin",
+      level: "warning",
+    });
+  }
+
+  const urgentAssignments = confirmedUnassigned.filter((booking) => {
+    if (!booking.date_time) return false;
+    const serviceTime = new Date(String(booking.date_time)).getTime();
+    if (Number.isNaN(serviceTime)) return false;
+    const msUntilService = serviceTime - now;
+    return msUntilService > 0 && msUntilService <= 24 * 60 * 60 * 1000;
+  });
+
+  if (urgentAssignments.length > 0) {
+    alerts.push({
+      title: "Urgent assignment window",
+      message: `${urgentAssignments.length} confirmed booking(s) are within 24 hours and still unassigned.`,
+      audience: "admin",
+      level: "warning",
+    });
+  }
 
   const activeJobs = bookings.filter((booking) =>
     ["assigned", "accepted", "picked_up"].includes(String(booking.driver_status || booking.status || ""))
