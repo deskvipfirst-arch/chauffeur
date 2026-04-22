@@ -1,6 +1,7 @@
 import { db, getAccessToken } from "@/lib/supabase";
 import { collection, getDocs, query, orderBy } from "@/lib/supabase-db";
 import { Vehicle, Booking, Driver, DriverPayment, Location, ServicePricing, ExtraCharge, GreeterInvoice } from "@/types/admin";
+import { COLLECTIONS } from "@/lib/types";
 
 type FetchResult<T> = {
   data: T[] | null;
@@ -144,7 +145,7 @@ export const fetchDrivers = async (): Promise<FetchResult<Driver>> => {
 export const fetchDriverPayments = async (): Promise<FetchResult<DriverPayment>> => {
   let isLoading = true;
   try {
-    const paymentsRef = collection(db, "driverPayments");
+    const paymentsRef = collection(db, COLLECTIONS.DRIVER_PAYMENTS);
     const q = query(paymentsRef, orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     const data = snapshot.docs.map(doc => {

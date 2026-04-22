@@ -58,7 +58,6 @@ export async function GET(request: Request) {
     const effectiveOfficeEmail =
       storedOfficeEmail ||
       process.env.BOOKING_NOTIFICATION_EMAIL ||
-      process.env.CONTACT_EMAIL ||
       "desk.vipfirst@gmail.com";
 
     return NextResponse.json({

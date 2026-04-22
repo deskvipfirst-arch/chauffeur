@@ -415,13 +415,22 @@ export async function updateBooking(id: string, data: Record<string, any>) {
 }
 
 export async function getDrivers() {
-  const { data, error } = await supabaseAdmin
-    .from(COLLECTIONS.DRIVERS)
-    .select("*")
-    .order("firstname", { ascending: true });
+  const { data, error } = await supabaseAdmin.from(COLLECTIONS.DRIVERS).select("*");
 
-  if (error) throw error;
-  return (data || []).map((row: any) => normalizeDbRow(row));
+  if (error) {
+    if (isMissingTableError(error)) {
+      return [];
+    }
+    throw error;
+  }
+
+  return (data || [])
+    .map((row: any) => normalizeDbRow(row))
+    .sort((left: any, right: any) => {
+      const leftName = String(left?.firstName || left?.firstname || left?.full_name || left?.fullName || "").toLowerCase();
+      const rightName = String(right?.firstName || right?.firstname || right?.full_name || right?.fullName || "").toLowerCase();
+      return leftName.localeCompare(rightName);
+    });
 }
 
 export async function getDriverByEmail(email: string) {

@@ -73,5 +73,5 @@ export const COLLECTIONS = {
   BOOKINGS: 'bookings',
   USERS: 'users',
   DRIVERS: 'drivers',
-  DRIVER_PAYMENTS: 'driverPayments',
+  DRIVER_PAYMENTS: 'driverpayments',
 } as const; 

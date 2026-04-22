@@ -7,6 +7,7 @@ import { Label } from "../ui/label";
 import Notification from "@/components/ui/notification";
 import { db } from "@/lib/supabase";
 import { collection, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "@/lib/supabase-db";
+import { COLLECTIONS } from "@/lib/types";
 
 type DriverPaymentsTabProps = {
   driverPayments: DriverPayment[];
@@ -96,7 +97,7 @@ export default function DriverPaymentsTab({
       if (!newPayment.driver_id || !newPayment.booking_id || !newPayment.amount || Number(newPayment.amount) <= 0) {
         throw new Error("Please fill in all required fields correctly");
       }
-      const paymentsRef = collection(db, "driverPayments");
+      const paymentsRef = collection(db, COLLECTIONS.DRIVER_PAYMENTS);
       await addDoc(paymentsRef, {
         ...newPayment,
         amount: Number(newPayment.amount),
@@ -116,7 +117,7 @@ export default function DriverPaymentsTab({
         throw new Error("Please fill in all required fields correctly");
       }
       const { id } = editingPayment;
-      const paymentRef = doc(db, "driverPayments", id);
+      const paymentRef = doc(db, COLLECTIONS.DRIVER_PAYMENTS, id);
       await updateDoc(paymentRef, {
         ...editPaymentForm,
         amount: Number(editPaymentForm.amount),
@@ -130,7 +131,7 @@ export default function DriverPaymentsTab({
       return;
     }
     await handleDatabaseOperation(async () => {
-      const paymentRef = doc(db, "driverPayments", paymentId);
+      const paymentRef = doc(db, COLLECTIONS.DRIVER_PAYMENTS, paymentId);
       await deleteDoc(paymentRef);
     }, "Payment deleted successfully");
   };

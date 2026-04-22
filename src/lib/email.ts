@@ -111,12 +111,11 @@ function splitEmailRecipients(value?: string | null) {
 }
 
 export function getOfficeNotificationRecipients(input: EmailConfigSummaryInput = {}) {
-  const contactEmail = String(input.contactEmail ?? process.env.CONTACT_EMAIL ?? "").trim();
   const bookingNotificationEmail = String(input.bookingNotificationEmail ?? process.env.BOOKING_NOTIFICATION_EMAIL ?? "").trim();
 
   const bookingRecipients = splitEmailRecipients(bookingNotificationEmail);
-  const fallbackRecipients = splitEmailRecipients(contactEmail);
-  const recipients = bookingRecipients.length > 0 ? bookingRecipients : fallbackRecipients;
+  const defaultRecipients = splitEmailRecipients(DEFAULT_OFFICE_INBOX);
+  const recipients = bookingRecipients.length > 0 ? bookingRecipients : defaultRecipients;
   if (recipients.length === 0) {
     recipients.push(DEFAULT_OFFICE_INBOX);
   }
@@ -129,7 +128,7 @@ export function getTransactionalEmailConfigSummary(input: EmailConfigSummaryInpu
   const fromEmail = String(input.fromEmail ?? process.env.RESEND_FROM_EMAIL ?? "").trim();
   const contactEmail = String(input.contactEmail ?? process.env.CONTACT_EMAIL ?? "").trim();
   const bookingNotificationEmail = String(input.bookingNotificationEmail ?? process.env.BOOKING_NOTIFICATION_EMAIL ?? "").trim();
-  const officeRecipients = getOfficeNotificationRecipients({ contactEmail, bookingNotificationEmail });
+  const officeRecipients = getOfficeNotificationRecipients({ bookingNotificationEmail });
   const officeDestination = officeRecipients.map((item) => maskEmailAddress(item)).filter(Boolean).join(", ");
   const missing: string[] = [];
 
