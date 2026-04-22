@@ -59,6 +59,11 @@ export async function isAdminUser(userId: string) {
   return isAllowedRole(role, ["admin"]);
 }
 
+export async function isAdminOrHeathrowUser(userId: string) {
+  const role = await getUserRole(userId);
+  return isAllowedRole(role, ["admin", "heathrow"]);
+}
+
 export async function isGreeterUser(userId: string) {
   const role = await getUserRole(userId);
   return isAllowedRole(role, ["greeter", "admin"]);

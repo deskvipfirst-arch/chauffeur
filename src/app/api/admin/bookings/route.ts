@@ -3,7 +3,7 @@ import { getBookings, requireAuthorizedUser } from "@/lib/supabase-admin";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAuthorizedUser(request.headers.get("authorization"), ["admin"]);
+    await requireAuthorizedUser(request.headers.get("authorization"), ["admin", "heathrow"]);
     const bookings = await getBookings();
     return NextResponse.json(bookings);
   } catch (error: unknown) {

@@ -82,7 +82,7 @@ export type DriverPayment = {
   payment_method: string;
 };
 
-export type GreeterInvoiceStatus = "submitted" | "under_review" | "approved" | "rejected" | "paid";
+export type GreeterInvoiceStatus = "submitted" | "under_review" | "queried" | "approved" | "rejected" | "paid" | "unpaid";
 
 export type GreeterInvoice = {
   id: string;

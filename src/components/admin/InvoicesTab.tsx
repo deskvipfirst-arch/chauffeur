@@ -55,6 +55,15 @@ export default function InvoicesTab({ bookings, isLoadingBookings, bookingError 
   }, []);
 
   const handleStatusChange = async (invoiceId: string, officeStatus: GreeterInvoiceStatus) => {
+    const draft = reviewDrafts[invoiceId] || { officeNotes: "", paymentReference: "" };
+    const officeNotes = draft.officeNotes.trim();
+    const paymentReference = draft.paymentReference.trim();
+
+    if (["queried", "rejected", "unpaid"].includes(officeStatus) && !officeNotes) {
+      toast.error("Add office notes before marking an invoice as queried, declined, or not paid.");
+      return;
+    }
+
     try {
       setActiveInvoiceId(invoiceId);
       const token = await getAccessToken();
@@ -66,8 +75,8 @@ export default function InvoicesTab({ bookings, isLoadingBookings, bookingError 
         },
         body: JSON.stringify({
           office_status: officeStatus,
-          office_notes: reviewDrafts[invoiceId]?.officeNotes || null,
-          payment_reference: reviewDrafts[invoiceId]?.paymentReference || null,
+          office_notes: officeNotes || null,
+          payment_reference: paymentReference || null,
         }),
       });
 
@@ -93,11 +102,11 @@ export default function InvoicesTab({ bookings, isLoadingBookings, bookingError 
       <div className="mb-4">
         <h2 className="text-2xl font-bold">Greeter Invoice Review</h2>
         <p className="text-sm text-slate-600">
-          Office reviews submitted greeter invoices and marks them as processed. Completed jobs available for invoicing: {completedJobsCount}
+          Office can accept, decline, or query greeter invoices, then mark approved invoices as paid or not paid. Completed jobs available for invoicing: {completedJobsCount}
         </p>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-7">
         <div className="rounded-lg bg-white p-4 shadow">
           <p className="text-sm text-slate-500">Total invoices</p>
           <p className="text-2xl font-bold text-slate-900">{metrics.total}</p>
@@ -107,12 +116,20 @@ export default function InvoicesTab({ bookings, isLoadingBookings, bookingError 
           <p className="text-2xl font-bold text-amber-600">{metrics.submitted + metrics.underReview}</p>
         </div>
         <div className="rounded-lg bg-white p-4 shadow">
+          <p className="text-sm text-slate-500">Queries raised</p>
+          <p className="text-2xl font-bold text-orange-600">{metrics.queried}</p>
+        </div>
+        <div className="rounded-lg bg-white p-4 shadow">
           <p className="text-sm text-slate-500">Approved</p>
           <p className="text-2xl font-bold text-blue-600">{metrics.approved}</p>
         </div>
         <div className="rounded-lg bg-white p-4 shadow">
           <p className="text-sm text-slate-500">Paid</p>
           <p className="text-2xl font-bold text-emerald-600">{metrics.paid}</p>
+        </div>
+        <div className="rounded-lg bg-white p-4 shadow">
+          <p className="text-sm text-slate-500">Not paid</p>
+          <p className="text-2xl font-bold text-rose-600">{metrics.unpaid}</p>
         </div>
         <div className="rounded-lg bg-white p-4 shadow">
           <p className="text-sm text-slate-500">Outstanding value</p>
@@ -161,7 +178,7 @@ export default function InvoicesTab({ bookings, isLoadingBookings, bookingError 
                         <textarea
                           rows={2}
                           className="w-full rounded border border-slate-300 px-2 py-1"
-                          placeholder="Office review notes"
+                          placeholder="Office review notes (required for query, decline, and not paid)"
                           value={draft.officeNotes}
                           onChange={(event) =>
                             setReviewDrafts((current) => ({
@@ -199,6 +216,9 @@ export default function InvoicesTab({ bookings, isLoadingBookings, bookingError 
                         {actions.length === 0 ? (
                           <div className="text-slate-500">
                             <span>No further action</span>
+                            {invoice.office_notes ? (
+                              <p className="text-xs text-slate-500">Notes: {invoice.office_notes}</p>
+                            ) : null}
                             {invoice.payment_reference ? (
                               <p className="text-xs text-slate-500">Ref: {invoice.payment_reference}</p>
                             ) : null}

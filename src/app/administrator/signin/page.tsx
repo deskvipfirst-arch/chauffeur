@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { isAdminUser } from "@/lib/adminUtils";
+import { isAdminOrHeathrowUser } from "@/lib/adminUtils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export default function AdminSignInPage() {
@@ -30,15 +30,15 @@ export default function AdminSignInPage() {
       if (currentUser) {
         console.log("Found existing user:", currentUser.uid);
         try {
-          const isAdmin = await isAdminUser(currentUser.uid);
-          console.log("Is admin:", isAdmin);
-          if (!isAdmin) {
-            console.log("User is not admin, signing out...");
+          const hasDashboardAccess = await isAdminOrHeathrowUser(currentUser.uid);
+          console.log("Has dashboard access:", hasDashboardAccess);
+          if (!hasDashboardAccess) {
+            console.log("User does not have dashboard access, signing out...");
             await auth.signOut();
             // Clear session cookie
             document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
           } else {
-            console.log("User is admin, redirecting to dashboard...");
+            console.log("User has dashboard access, redirecting to dashboard...");
             // Set session cookie
             const token = await currentUser.getIdToken();
             document.cookie = `session=${token}; path=/;`;
@@ -87,25 +87,25 @@ export default function AdminSignInPage() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       console.log("Sign in successful, checking admin status...");
       
-      // Check if user is admin
-      const isAdmin = await isAdminUser(userCredential.user.uid);
-      console.log("Is admin:", isAdmin);
+      // Check if user can access admin/heathrow dashboard
+      const hasDashboardAccess = await isAdminOrHeathrowUser(userCredential.user.uid);
+      console.log("Has dashboard access:", hasDashboardAccess);
       
-      if (!isAdmin) {
-        console.log("User is not admin, signing out...");
+      if (!hasDashboardAccess) {
+        console.log("User does not have dashboard access, signing out...");
         await auth.signOut();
         // Clear session cookie
         document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-        throw new Error("Unauthorized access. Admin privileges required.");
+        throw new Error("Unauthorized access. Admin or Heathrow operations privileges required.");
       }
 
-      // If we get here, the user is authenticated and is an admin
-      console.log("User is admin, setting session cookie and redirecting...");
+      // If we get here, the user is authenticated and can access dashboard
+      console.log("User has dashboard access, setting session cookie and redirecting...");
       // Set session cookie
       const token = await userCredential.user.getIdToken();
       document.cookie = `session=${token}; path=/;`;
       
-      toast.success("Successfully signed in as administrator");
+      toast.success("Successfully signed in");
       
       // Use replace instead of push to prevent back button issues
       window.location.replace("/administrator/dashboard");

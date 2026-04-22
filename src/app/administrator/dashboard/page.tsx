@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { auth, getAccessToken } from "@/lib/supabase";
 import { onAuthStateChanged } from "@/lib/supabase-auth";
 import { useRouter } from "next/navigation";
-import { isAdminUser } from "@/lib/adminUtils";
+import { getUserRole, isAllowedRole } from "@/lib/adminUtils";
 import { buildUnauthorizedNotification } from "@/lib/notifications";
 import {
   DropdownMenu,
@@ -52,7 +52,8 @@ import { getPrimaryFlightNumber } from "@/lib/flightStatus";
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [canAccessDashboard, setCanAccessDashboard] = useState(false);
+  const [isMonitoringOnly, setIsMonitoringOnly] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
     "vehicles" | "bookings" | "payments" | "invoices" | "priceSettings" | "heathrow"
@@ -93,6 +94,9 @@ export default function AdminDashboard() {
   const [greeterInvoices, setGreeterInvoices] = useState<GreeterInvoice[]>([]);
   const [flightStatuses, setFlightStatuses] = useState<Record<string, { status: string; terminal: string | null; source: string }>>({});
 
+  const isHeathrowOnly = isMonitoringOnly;
+  const canManageOperations = !isHeathrowOnly;
+
   const fetchEmailStatus = async () => {
     try {
       const token = await getAccessToken();
@@ -115,7 +119,16 @@ export default function AdminDashboard() {
     }
   };
 
-  const refreshDashboardData = async () => {
+  const refreshDashboardData = async (monitoringOnly: boolean) => {
+    if (monitoringOnly) {
+      await fetchBookings().then(({ data, error, isLoading }) => {
+        setBookings(data || []);
+        setBookingError(error);
+        setIsLoadingBookings(isLoading);
+      });
+      return;
+    }
+
     await Promise.all([
       fetchVehicles().then(({ data, error, isLoading }) => {
         setVehicles(data || []);
@@ -157,9 +170,11 @@ export default function AdminDashboard() {
       lastHandledAuthUidRef.current = user.uid;
 
       try {
-        const isAdmin = await isAdminUser(user.uid);
+        const role = await getUserRole(user.uid);
+        const monitoringOnly = isAllowedRole(role, ["heathrow"]);
+        const hasDashboardAccess = isAllowedRole(role, ["admin", "heathrow"]);
 
-        if (!isAdmin) {
+        if (!hasDashboardAccess) {
           const notice = buildUnauthorizedNotification("admin");
           toast.error(notice.message);
           await auth.signOut();
@@ -168,11 +183,13 @@ export default function AdminDashboard() {
         }
 
         setIsAuthenticated(true);
-        setIsAdmin(true);
+        setCanAccessDashboard(true);
+        setIsMonitoringOnly(monitoringOnly);
         setIsLoading(false);
         setUserEmail(user.email || "");
+        setActiveTab(monitoringOnly ? "heathrow" : "bookings");
 
-        await refreshDashboardData();
+        await refreshDashboardData(monitoringOnly);
       } catch (error) {
         console.error("Error checking admin status:", error);
         await auth.signOut();
@@ -217,29 +234,48 @@ export default function AdminDashboard() {
   const handleAssignDriver = async (bookingId: string, value: string) => {
     const isUnassign = value === "unassign";
     const token = await getAccessToken();
-    const response = await fetch(`/api/admin/bookings/${bookingId}`, {
+    const requestBody = isUnassign
+      ? {
+          driver_id: null,
+          driver_status: "unassigned",
+          assigned_at: null,
+        }
+      : {
+          driver_id: value,
+          driver_status: "assigned",
+          status: "assigned",
+          assigned_at: new Date().toISOString(),
+        };
+
+    let response = await fetch(`/api/admin/bookings/${bookingId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(
-        isUnassign
-          ? {
-              driver_id: null,
-              driver_status: "unassigned",
-              assigned_at: null,
-            }
-          : {
-              driver_id: value,
-              driver_status: "assigned",
-              status: "assigned",
-              assigned_at: new Date().toISOString(),
-            }
-      ),
+      body: JSON.stringify(requestBody),
     });
 
-    const result = await response.json();
+    let result = await response.json();
+
+    if (!response.ok && result?.code === "ASSIGNMENT_OVERRIDE_REQUIRED" && !isUnassign) {
+      const reason = window.prompt("This booking is within 24 hours. Enter override reason to continue assignment:");
+      if (!reason || !reason.trim()) {
+        toast.error("Assignment cancelled. Override reason is required for late assignment.");
+        return;
+      }
+
+      response = await fetch(`/api/admin/bookings/${bookingId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ ...requestBody, assignment_override_reason: reason.trim() }),
+      });
+      result = await response.json();
+    }
+
     if (!response.ok) {
       toast.error(result.error || "Failed to assign greeter");
       return;
@@ -384,12 +420,12 @@ export default function AdminDashboard() {
   }, [bookings]);
 
   useEffect(() => {
-    if (!isAuthenticated || !isAdmin) return;
+    if (!isAuthenticated || !canAccessDashboard) return;
 
-    const stopPolling = createPollingInterval(() => refreshDashboardData(), 15000);
+    const stopPolling = createPollingInterval(() => refreshDashboardData(isHeathrowOnly), 15000);
     const onVisibilityChange = () => {
       if (shouldRefreshOnVisibility(document.visibilityState)) {
-        void refreshDashboardData();
+        void refreshDashboardData(isHeathrowOnly);
       }
     };
 
@@ -399,7 +435,7 @@ export default function AdminDashboard() {
       stopPolling();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [isAuthenticated, isAdmin]);
+  }, [isAuthenticated, canAccessDashboard, isHeathrowOnly]);
 
   const handleLogout = async () => {
     try {
@@ -425,7 +461,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!isAuthenticated || !isAdmin) {
+  if (!isAuthenticated || !canAccessDashboard) {
     return null; // Will redirect in useEffect
   }
 
@@ -463,7 +499,7 @@ export default function AdminDashboard() {
         >
           <div className="flex items-center justify-between p-4 border-b border-gray-700">
             {isSidebarOpen && (
-              <h2 className="text-lg font-semibold">Admin Panel</h2>
+              <h2 className="text-lg font-semibold">{isHeathrowOnly ? "Heathrow Monitor" : "Admin Panel"}</h2>
             )}
             <SidebarTrigger
               onClick={() => setIsSidebarOpen((prev) => !prev)}
@@ -474,61 +510,65 @@ export default function AdminDashboard() {
           </div>
           <SidebarContent>
             <SidebarGroup className="mt-4">
-              <SidebarMenuItem
-                onClick={() => setActiveTab("bookings")}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                  activeTab === "bookings" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                  !isSidebarOpen && "justify-center"
-                )}
-              >
-                <Calendar className="h-5 w-5" />
-                {isSidebarOpen && <span>Bookings</span>}
-              </SidebarMenuItem>
-              <SidebarMenuItem
-                onClick={() => setActiveTab("vehicles")}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                  activeTab === "vehicles" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                  !isSidebarOpen && "justify-center"
-                )}
-              >
-                <Car className="h-5 w-5" />
-                {isSidebarOpen && <span>Vehicles</span>}
-              </SidebarMenuItem>
-              <SidebarMenuItem
-                onClick={() => setActiveTab("payments")}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                  activeTab === "payments" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                  !isSidebarOpen && "justify-center"
-                )}
-              >
-                <DollarSign className="h-5 w-5" />
-                {isSidebarOpen && <span>Payments</span>}
-              </SidebarMenuItem>
-              <SidebarMenuItem
-                onClick={() => setActiveTab("invoices")}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                  activeTab === "invoices" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                  !isSidebarOpen && "justify-center"
-                )}
-              >
-                <FileText className="h-5 w-5" />
-                {isSidebarOpen && <span>Invoices</span>}
-              </SidebarMenuItem>
-              <SidebarMenuItem
-                onClick={() => setActiveTab("priceSettings")}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                  activeTab === "priceSettings" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                  !isSidebarOpen && "justify-center"
-                )}
-              >
-                <Settings className="h-5 w-5" />
-                {isSidebarOpen && <span>Price Settings</span>}
-              </SidebarMenuItem>
+              {canManageOperations && (
+                <>
+                  <SidebarMenuItem
+                    onClick={() => setActiveTab("bookings")}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                      activeTab === "bookings" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
+                      !isSidebarOpen && "justify-center"
+                    )}
+                  >
+                    <Calendar className="h-5 w-5" />
+                    {isSidebarOpen && <span>Bookings</span>}
+                  </SidebarMenuItem>
+                  <SidebarMenuItem
+                    onClick={() => setActiveTab("vehicles")}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                      activeTab === "vehicles" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
+                      !isSidebarOpen && "justify-center"
+                    )}
+                  >
+                    <Car className="h-5 w-5" />
+                    {isSidebarOpen && <span>Vehicles</span>}
+                  </SidebarMenuItem>
+                  <SidebarMenuItem
+                    onClick={() => setActiveTab("payments")}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                      activeTab === "payments" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
+                      !isSidebarOpen && "justify-center"
+                    )}
+                  >
+                    <DollarSign className="h-5 w-5" />
+                    {isSidebarOpen && <span>Payments</span>}
+                  </SidebarMenuItem>
+                  <SidebarMenuItem
+                    onClick={() => setActiveTab("invoices")}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                      activeTab === "invoices" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
+                      !isSidebarOpen && "justify-center"
+                    )}
+                  >
+                    <FileText className="h-5 w-5" />
+                    {isSidebarOpen && <span>Invoices</span>}
+                  </SidebarMenuItem>
+                  <SidebarMenuItem
+                    onClick={() => setActiveTab("priceSettings")}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
+                      activeTab === "priceSettings" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
+                      !isSidebarOpen && "justify-center"
+                    )}
+                  >
+                    <Settings className="h-5 w-5" />
+                    {isSidebarOpen && <span>Price Settings</span>}
+                  </SidebarMenuItem>
+                </>
+              )}
               <SidebarMenuItem
                 onClick={() => setActiveTab("heathrow")}
                 className={cn(
@@ -562,7 +602,7 @@ export default function AdminDashboard() {
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">Admin</p>
+                    <p className="text-sm font-medium leading-none">{isHeathrowOnly ? "Heathrow Operations" : "Admin"}</p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {userEmail}
                     </p>
@@ -573,14 +613,18 @@ export default function AdminDashboard() {
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/administrator/add-admin')}>
-                  <Shield className="mr-2 h-4 w-4" />
-                  <span>Add Admin</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/administrator/change-password')}>
-                  <Key className="mr-2 h-4 w-4" />
-                  <span>Change Password</span>
-                </DropdownMenuItem>
+                {canManageOperations && (
+                  <>
+                    <DropdownMenuItem onClick={() => router.push('/administrator/add-admin')}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Add Admin</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push('/administrator/change-password')}>
+                      <Key className="mr-2 h-4 w-4" />
+                      <span>Change Password</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />

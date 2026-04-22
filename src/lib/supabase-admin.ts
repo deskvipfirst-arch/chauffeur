@@ -444,6 +444,26 @@ export async function getDriverByEmail(email: string) {
   return normalizeDbRow(data);
 }
 
+export async function getDriverById(id: string) {
+  const normalizedId = String(id || "").trim();
+  if (!normalizedId) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from(COLLECTIONS.DRIVERS)
+    .select("*")
+    .eq("id", normalizedId)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      return null;
+    }
+    throw error;
+  }
+
+  return normalizeDbRow(data);
+}
+
 export async function getBookingsForDriverEmail(email: string) {
   const driver = await getDriverByEmail(email);
   if (!driver) return [];
@@ -630,7 +650,7 @@ export async function reviewGreeterInvoice(id: string, updates: Record<string, a
     ...updates,
   };
 
-  if (["under_review", "approved", "rejected", "paid"].includes(nextStatus)) {
+  if (["under_review", "queried", "approved", "rejected", "paid", "unpaid"].includes(nextStatus)) {
     payload.reviewed_at = now;
     payload.reviewed_by = updates.reviewed_by || "office";
   }

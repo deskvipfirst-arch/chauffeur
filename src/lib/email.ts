@@ -45,6 +45,20 @@ type BookingConfirmationInput = {
   supportEmail?: string;
 };
 
+type GreeterAssignmentEmailInput = {
+  bookingRef: string;
+  passengerName: string;
+  passengerEmail?: string;
+  serviceType: string;
+  dateTime: string;
+  pickupLocation: string;
+  dropoffLocation?: string | null;
+  greeterName: string;
+  greeterEmail?: string;
+  greeterPhone?: string;
+  supportEmail?: string;
+};
+
 const BRAND_NAME = APP_NAME;
 const BRAND_SUBTITLE = APP_SUBTITLE;
 const BRAND_ACCENT = "#DAA520";
@@ -310,6 +324,76 @@ export function buildOfficeBookingNotificationEmail(input: BookingConfirmationIn
         </div>
       `,
       footerNote: "This email was sent to the business owner and office operations inbox.",
+      supportEmail: input.supportEmail,
+    }),
+  };
+}
+
+export function buildPassengerGreeterAssignmentEmail(input: GreeterAssignmentEmailInput) {
+  const serviceDate = new Date(input.dateTime);
+  const formattedDate = Number.isNaN(serviceDate.getTime())
+    ? input.dateTime
+    : serviceDate.toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+
+  const greeterName = String(input.greeterName || "Assigned greeter").trim();
+  const greeterPhone = String(input.greeterPhone || "").trim();
+  const greeterEmail = String(input.greeterEmail || "").trim().toLowerCase();
+
+  return {
+    subject: `Greeter assigned: ${input.bookingRef}`,
+    text: `Hello ${input.passengerName}, your greeter has been assigned for booking ${input.bookingRef}. Greeter: ${greeterName}.${greeterPhone ? ` Phone: ${greeterPhone}.` : ""}${greeterEmail ? ` Email: ${greeterEmail}.` : ""} Service: ${input.serviceType}. Date: ${formattedDate}. Pickup: ${input.pickupLocation}.${input.dropoffLocation ? ` Drop-off: ${input.dropoffLocation}.` : ""}`,
+    html: buildEmailShell({
+      title: "Your greeter is assigned",
+      intro: `Hello ${input.passengerName}, your booking is now confirmed and a greeter has been assigned.`,
+      contentHtml: `
+        <p style="margin:0 0 8px;"><strong>Booking reference:</strong> ${escapeHtml(input.bookingRef)}</p>
+        <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeHtml(input.serviceType)}</p>
+        <p style="margin:0 0 8px;"><strong>Date and time:</strong> ${escapeHtml(formattedDate)}</p>
+        <p style="margin:0 0 8px;"><strong>Pickup:</strong> ${escapeHtml(input.pickupLocation)}</p>
+        ${input.dropoffLocation ? `<p style="margin:0 0 8px;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
+          <p style="margin:0 0 8px;"><strong>Assigned greeter:</strong> ${escapeHtml(greeterName)}</p>
+          ${greeterPhone ? `<p style="margin:0 0 8px;"><strong>Greeter phone:</strong> ${escapeHtml(greeterPhone)}</p>` : ""}
+          ${greeterEmail ? `<p style="margin:0;"><strong>Greeter email:</strong> ${escapeHtml(greeterEmail)}</p>` : ""}
+        </div>
+      `,
+      footerNote: "Please keep your phone available on the day of service in case the greeter needs to contact you.",
+      supportEmail: input.supportEmail,
+    }),
+  };
+}
+
+export function buildGreeterAssignmentEmail(input: GreeterAssignmentEmailInput) {
+  const serviceDate = new Date(input.dateTime);
+  const formattedDate = Number.isNaN(serviceDate.getTime())
+    ? input.dateTime
+    : serviceDate.toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+
+  const passengerName = String(input.passengerName || "Passenger").trim();
+  const passengerEmail = String(input.passengerEmail || "").trim().toLowerCase();
+
+  return {
+    subject: `New greeter assignment: ${input.bookingRef}`,
+    text: `You have been assigned booking ${input.bookingRef}. Passenger: ${passengerName}.${passengerEmail ? ` Passenger email: ${passengerEmail}.` : ""} Service: ${input.serviceType}. Date: ${formattedDate}. Pickup: ${input.pickupLocation}.${input.dropoffLocation ? ` Drop-off: ${input.dropoffLocation}.` : ""} Please confirm meet-up status from your greeter dashboard.`,
+    html: buildEmailShell({
+      title: "New job assignment",
+      intro: "You have a new passenger booking assigned to you.",
+      contentHtml: `
+        <p style="margin:0 0 8px;"><strong>Booking reference:</strong> ${escapeHtml(input.bookingRef)}</p>
+        <p style="margin:0 0 8px;"><strong>Passenger:</strong> ${escapeHtml(passengerName)}</p>
+        ${passengerEmail ? `<p style="margin:0 0 8px;"><strong>Passenger email:</strong> ${escapeHtml(passengerEmail)}</p>` : ""}
+        <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeHtml(input.serviceType)}</p>
+        <p style="margin:0 0 8px;"><strong>Date and time:</strong> ${escapeHtml(formattedDate)}</p>
+        <p style="margin:0 0 8px;"><strong>Pickup:</strong> ${escapeHtml(input.pickupLocation)}</p>
+        ${input.dropoffLocation ? `<p style="margin:0;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
+      `,
+      footerNote: "Use the greeter dashboard to update accepted, pickup, and completed milestones.",
       supportEmail: input.supportEmail,
     }),
   };

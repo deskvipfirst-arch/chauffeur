@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildBookingConfirmationEmail, buildOfficeBookingNotificationEmail } from "./email";
+import {
+  buildBookingConfirmationEmail,
+  buildGreeterAssignmentEmail,
+  buildOfficeBookingNotificationEmail,
+  buildPassengerGreeterAssignmentEmail,
+} from "./email";
 
 describe("booking email workflow", () => {
   it("creates a customer confirmation email with the key booking details", () => {
@@ -35,5 +40,43 @@ describe("booking email workflow", () => {
     expect(result.subject).toContain("Office action needed");
     expect(result.html).toContain("alex@example.com");
     expect(result.html).toContain("VIP Greeters");
+  });
+
+  it("creates a passenger assignment email with greeter details", () => {
+    const result = buildPassengerGreeterAssignmentEmail({
+      bookingRef: "CHAUF-20260418-TEST01",
+      passengerName: "Alex Taylor",
+      passengerEmail: "alex@example.com",
+      serviceType: "Airport Transfer",
+      dateTime: "2026-04-20T09:30:00.000Z",
+      pickupLocation: "Heathrow Airport Terminal 5",
+      dropoffLocation: "Canary Wharf",
+      greeterName: "Jordan Lee",
+      greeterEmail: "jordan@example.com",
+      greeterPhone: "+44 7000 000000",
+    });
+
+    expect(result.subject).toContain("Greeter assigned");
+    expect(result.html).toContain("Jordan Lee");
+    expect(result.html).toContain("+44 7000 000000");
+  });
+
+  it("creates a greeter assignment email with passenger details", () => {
+    const result = buildGreeterAssignmentEmail({
+      bookingRef: "CHAUF-20260418-TEST01",
+      passengerName: "Alex Taylor",
+      passengerEmail: "alex@example.com",
+      serviceType: "Airport Transfer",
+      dateTime: "2026-04-20T09:30:00.000Z",
+      pickupLocation: "Heathrow Airport Terminal 5",
+      dropoffLocation: "Canary Wharf",
+      greeterName: "Jordan Lee",
+      greeterEmail: "jordan@example.com",
+      greeterPhone: "+44 7000 000000",
+    });
+
+    expect(result.subject).toContain("New greeter assignment");
+    expect(result.html).toContain("Alex Taylor");
+    expect(result.html).toContain("CHAUF-20260418-TEST01");
   });
 });

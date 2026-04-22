@@ -50,6 +50,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import { Phone, Mail, UserCheck } from "lucide-react";
 
 const formatServiceType = (type: string): string => {
   return type
@@ -73,6 +74,15 @@ const formatStatusLabel = (value?: string | null) => {
 const isPaidBooking = (booking: Booking) => String(booking.payment_status || "").toLowerCase() === "paid";
 const isCancelledBooking = (booking: Booking) => String(booking.status || "").toLowerCase() === "cancelled";
 const isDeletedBooking = (booking: Booking) => String(booking.status || "").toLowerCase() === "deleted";
+
+const GREETER_VISIBLE_STATUSES = new Set(["assigned", "accepted", "picked_up"]);
+
+type GreeterInfo = {
+  name: string;
+  phone: string | null;
+  email: string | null;
+  status: string;
+};
 
 const canModifyBooking = (bookingDate: string) => {
   const serviceDateTime = new Date(bookingDate);
@@ -109,6 +119,7 @@ export default function CustomerDashboard() {
   const [processingPayments, setProcessingPayments] = useState<Record<string, boolean>>({});
   const [bookingToCancel, setBookingToCancel] = useState<Booking | null>(null);
   const [bookingToDelete, setBookingToDelete] = useState<Booking | null>(null);
+  const [greeterInfoMap, setGreeterInfoMap] = useState<Record<string, GreeterInfo | null>>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -166,6 +177,27 @@ export default function CustomerDashboard() {
         })) as Booking[];
 
         setBookings(bookingsData);
+
+        // Eagerly fetch greeter info for bookings that have a greeter assigned
+        const assignedBookings = bookingsData.filter(
+          (b) => b.driver_id && GREETER_VISIBLE_STATUSES.has(String(b.driver_status || "").toLowerCase())
+        );
+        if (assignedBookings.length > 0) {
+          const token = await nextUser.getIdToken();
+          const results = await Promise.allSettled(
+            assignedBookings.map((b) =>
+              fetch(`/api/user/bookings/${b.id}/greeter`, {
+                headers: { Authorization: `Bearer ${token}` },
+              }).then((r) => r.json())
+            )
+          );
+          const infoMap: Record<string, GreeterInfo | null> = {};
+          assignedBookings.forEach((b, i) => {
+            const result = results[i];
+            infoMap[b.id] = result.status === "fulfilled" ? (result.value.greeter ?? null) : null;
+          });
+          setGreeterInfoMap(infoMap);
+        }
       } catch (err) {
         console.error("Error fetching passenger dashboard data:", err);
         setError("We could not load your dashboard just now. Please try again shortly.");
@@ -460,6 +492,46 @@ export default function CustomerDashboard() {
                               </div>
                             )}
                           </div>
+
+                          {/* Greeter contact card */}
+                          {GREETER_VISIBLE_STATUSES.has(String(booking.driver_status || "").toLowerCase()) &&
+                            greeterInfoMap[booking.id] !== undefined && (
+                              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                                <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-emerald-800">
+                                  <UserCheck className="h-4 w-4" />
+                                  Your greeter has been assigned
+                                </div>
+                                {greeterInfoMap[booking.id] ? (
+                                  <div className="space-y-1 text-sm text-emerald-900">
+                                    <p className="font-medium">{greeterInfoMap[booking.id]!.name}</p>
+                                    {greeterInfoMap[booking.id]!.phone && (
+                                      <div className="flex items-center gap-2">
+                                        <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                                        <a
+                                          href={`tel:${greeterInfoMap[booking.id]!.phone}`}
+                                          className="hover:underline"
+                                        >
+                                          {greeterInfoMap[booking.id]!.phone}
+                                        </a>
+                                      </div>
+                                    )}
+                                    {greeterInfoMap[booking.id]!.email && (
+                                      <div className="flex items-center gap-2">
+                                        <Mail className="h-3.5 w-3.5 text-emerald-600" />
+                                        <a
+                                          href={`mailto:${greeterInfoMap[booking.id]!.email}`}
+                                          className="hover:underline"
+                                        >
+                                          {greeterInfoMap[booking.id]!.email}
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-emerald-700">Contact details will be available shortly.</p>
+                                )}
+                              </div>
+                            )}
                         </div>
 
                         <div className="flex flex-wrap gap-2 lg:max-w-[230px] lg:justify-end">
