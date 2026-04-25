@@ -162,14 +162,14 @@ export default function PriceSettingsTab({
             <p className="text-red-500">{locationError}</p>
           ) : (
             <>
-              <div className="flex gap-2 mb-4">
+              <div className="mb-4 flex flex-wrap gap-2">
                 <Button onClick={() => {
                   setModalLocation({ name: "", status: "active", isAirport: false, terminals: [] });
                   setIsAddLocationOpen(true);
                 }}>Add Location</Button>
               </div>
               <Dialog open={isAddLocationOpen} onOpenChange={setIsAddLocationOpen}>
-                <DialogContent>
+                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Add New Location</DialogTitle>
                   </DialogHeader>
@@ -197,7 +197,7 @@ export default function PriceSettingsTab({
                     {modalLocation.isAirport && (
                       <div className="space-y-2">
                         <Label>Terminals (Optional)</Label>
-                        <div className="flex space-x-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <Input
                             placeholder="Add terminal (e.g. T1, T2)"
                             value={newTerminal}
@@ -260,7 +260,7 @@ export default function PriceSettingsTab({
                       </SelectContent>
                     </Select>
                   </div>
-                  <DialogFooter>
+                  <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button
                       onClick={async () => {
                         if (!modalLocation.name) return;
@@ -326,24 +326,21 @@ export default function PriceSettingsTab({
                 </DialogContent>
               </Dialog>
               {locationError && <p className="text-red-500">{locationError}</p>}
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Location Name</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {locations.map((location) => (
-                    <TableRow key={location.id}>
-                      <TableCell>{location.name}</TableCell>
-                      <TableCell>
+              <div className="space-y-4 md:hidden">
+                {locations.map((location) => (
+                  <div key={location.id} className="rounded-lg border p-4 shadow-sm">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Location Name</p>
+                        <p className="font-semibold">{location.name}</p>
+                      </div>
+                      <div>
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</p>
                         <Select
                           value={location.status}
                           onValueChange={(value) => updateLocationStatus(location.id, value as "active" | "inactive")}
                         >
-                          <SelectTrigger className="w-[180px]">
+                          <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -351,23 +348,55 @@ export default function PriceSettingsTab({
                             <SelectItem value="inactive">Inactive</SelectItem>
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell>
-                        {/* Optionally add delete button */}
-                      </TableCell>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Location Name</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {locations.map((location) => (
+                      <TableRow key={location.id}>
+                        <TableCell>{location.name}</TableCell>
+                        <TableCell>
+                          <Select
+                            value={location.status}
+                            onValueChange={(value) => updateLocationStatus(location.id, value as "active" | "inactive")}
+                          >
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          {/* Optionally add delete button */}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </>
           )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Manage Service Pricing</CardTitle>
-          <Button className="mt-2" onClick={() => setShowAddServicePricingModal(true)}>Add Service Pricing</Button>
+          <Button onClick={() => setShowAddServicePricingModal(true)}>Add Service Pricing</Button>
         </CardHeader>
         <CardContent>
           {isLoadingPricing ? (
@@ -377,27 +406,29 @@ export default function PriceSettingsTab({
           ) : (
             <>
               <Dialog open={showAddServicePricingModal} onOpenChange={setShowAddServicePricingModal}>
-                <DialogContent>
+                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Add Service Pricing</DialogTitle>
                   </DialogHeader>
-                  <Input
-                    placeholder="ID (e.g. airport-transfer-base)"
-                    value={newPricing.id || ""}
-                    onChange={e => setNewPricing({ ...newPricing, id: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Base Rate"
-                    type="number"
-                    value={newPricing.baseRate || ""}
-                    onChange={e => setNewPricing({ ...newPricing, baseRate: Number(e.target.value) })}
-                  />
-                  <Input
-                    placeholder="Description"
-                    value={newPricing.description || ""}
-                    onChange={e => setNewPricing({ ...newPricing, description: e.target.value })}
-                  />
-                  <DialogFooter>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="ID (e.g. airport-transfer-base)"
+                      value={newPricing.id || ""}
+                      onChange={e => setNewPricing({ ...newPricing, id: e.target.value })}
+                    />
+                    <Input
+                      placeholder="Base Rate"
+                      type="number"
+                      value={newPricing.baseRate || ""}
+                      onChange={e => setNewPricing({ ...newPricing, baseRate: Number(e.target.value) })}
+                    />
+                    <Input
+                      placeholder="Description"
+                      value={newPricing.description || ""}
+                      onChange={e => setNewPricing({ ...newPricing, description: e.target.value })}
+                    />
+                  </div>
+                  <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button onClick={async () => {
                       await addServicePricing(newPricing);
                       setNewPricing({ id: "", baseRate: 0, description: "" });
@@ -408,48 +439,77 @@ export default function PriceSettingsTab({
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Base Rate (£)</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {servicePricing.map((pricing) => (
-                    <TableRow key={pricing.id}>
-                      <TableCell>{pricing.id}</TableCell>
-                      <TableCell>
+              <div className="space-y-4 md:hidden">
+                {servicePricing.map((pricing) => (
+                  <div key={pricing.id} className="rounded-lg border p-4 shadow-sm">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">ID</p>
+                        <p className="font-semibold break-all">{pricing.id}</p>
+                      </div>
+                      <div>
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Description</p>
                         <Input
                           value={pricing.description}
                           onChange={e => updateServicePricing(pricing.id, pricing.baseRate, e.target.value)}
                         />
-                      </TableCell>
-                      <TableCell>
+                      </div>
+                      <div>
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Base Rate (£)</p>
                         <Input
                           type="number"
                           value={pricing.baseRate}
                           onChange={e => updateServicePricing(pricing.id, Number(e.target.value), pricing.description)}
                         />
-                      </TableCell>
-                      <TableCell>
-                        {/* Optionally add delete button */}
-                      </TableCell>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Base Rate (£)</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {servicePricing.map((pricing) => (
+                      <TableRow key={pricing.id}>
+                        <TableCell>{pricing.id}</TableCell>
+                        <TableCell>
+                          <Input
+                            value={pricing.description}
+                            onChange={e => updateServicePricing(pricing.id, pricing.baseRate, e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={pricing.baseRate}
+                            onChange={e => updateServicePricing(pricing.id, Number(e.target.value), pricing.description)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {/* Optionally add delete button */}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </>
           )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Manage Extra Charges</CardTitle>
-          <Button className="mt-2" onClick={() => setShowAddExtraChargeModal(true)}>Add Extra Charge</Button>
+          <Button onClick={() => setShowAddExtraChargeModal(true)}>Add Extra Charge</Button>
         </CardHeader>
         <CardContent>
           {isLoadingCharges ? (
@@ -459,27 +519,29 @@ export default function PriceSettingsTab({
           ) : (
             <>
               <Dialog open={showAddExtraChargeModal} onOpenChange={setShowAddExtraChargeModal}>
-                <DialogContent>
+                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Add Extra Charge</DialogTitle>
                   </DialogHeader>
-                  <Input
-                    placeholder="ID (e.g. additional-hour)"
-                    value={newExtraCharge.id || ""}
-                    onChange={e => setNewExtraCharge({ ...newExtraCharge, id: e.target.value })}
-                  />
-                  <Input
-                    placeholder="Amount"
-                    type="number"
-                    value={newExtraCharge.amount || ""}
-                    onChange={e => setNewExtraCharge({ ...newExtraCharge, amount: Number(e.target.value) })}
-                  />
-                  <Input
-                    placeholder="Description"
-                    value={newExtraCharge.description || ""}
-                    onChange={e => setNewExtraCharge({ ...newExtraCharge, description: e.target.value })}
-                  />
-                  <DialogFooter>
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="ID (e.g. additional-hour)"
+                      value={newExtraCharge.id || ""}
+                      onChange={e => setNewExtraCharge({ ...newExtraCharge, id: e.target.value })}
+                    />
+                    <Input
+                      placeholder="Amount"
+                      type="number"
+                      value={newExtraCharge.amount || ""}
+                      onChange={e => setNewExtraCharge({ ...newExtraCharge, amount: Number(e.target.value) })}
+                    />
+                    <Input
+                      placeholder="Description"
+                      value={newExtraCharge.description || ""}
+                      onChange={e => setNewExtraCharge({ ...newExtraCharge, description: e.target.value })}
+                    />
+                  </div>
+                  <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <Button onClick={async () => {
                       await addExtraCharge(newExtraCharge);
                       setNewExtraCharge({ id: "", amount: 0, description: "" });
@@ -490,39 +552,68 @@ export default function PriceSettingsTab({
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Amount (£)</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {extraCharges.map((charge) => (
-                    <TableRow key={charge.id}>
-                      <TableCell>{charge.id}</TableCell>
-                      <TableCell>
+              <div className="space-y-4 md:hidden">
+                {extraCharges.map((charge) => (
+                  <div key={charge.id} className="rounded-lg border p-4 shadow-sm">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">ID</p>
+                        <p className="font-semibold break-all">{charge.id}</p>
+                      </div>
+                      <div>
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Description</p>
                         <Input
                           value={charge.description}
                           onChange={e => updateExtraCharge(charge.id, charge.amount, e.target.value)}
                         />
-                      </TableCell>
-                      <TableCell>
+                      </div>
+                      <div>
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Amount (£)</p>
                         <Input
                           type="number"
                           value={charge.amount}
                           onChange={e => updateExtraCharge(charge.id, Number(e.target.value), charge.description)}
                         />
-                      </TableCell>
-                      <TableCell>
-                        {/* Optionally add delete button */}
-                      </TableCell>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Amount (£)</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {extraCharges.map((charge) => (
+                      <TableRow key={charge.id}>
+                        <TableCell>{charge.id}</TableCell>
+                        <TableCell>
+                          <Input
+                            value={charge.description}
+                            onChange={e => updateExtraCharge(charge.id, charge.amount, e.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={charge.amount}
+                            onChange={e => updateExtraCharge(charge.id, Number(e.target.value), charge.description)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {/* Optionally add delete button */}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </>
           )}
         </CardContent>

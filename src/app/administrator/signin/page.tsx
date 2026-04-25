@@ -6,6 +6,7 @@ import { auth } from "@/lib/supabase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "@/lib/supabase-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { isAdminOrHeathrowUser } from "@/lib/adminUtils";
@@ -198,8 +199,7 @@ export default function AdminSignInPage() {
               />
             </div>
             <div>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="Password"
                 value={password}
                 onChange={(e) => {

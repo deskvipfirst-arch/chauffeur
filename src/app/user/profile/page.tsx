@@ -114,7 +114,7 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-muted p-6">
+      <div className="min-h-screen bg-muted p-4 sm:p-6">
         <div className="container mx-auto">
           <div className="flex justify-center items-center h-64">
             <Icons.spinner className="h-8 w-8 animate-spin" />
@@ -125,11 +125,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted p-6">
+    <div className="min-h-screen bg-muted p-4 sm:p-6">
       <div className="container mx-auto max-w-2xl">
         <div className="mb-6">
-          <h1 className="text-4xl font-bold">Profile Settings</h1>
-          <p className="text-lg text-muted-foreground mt-2">
+          <h1 className="text-3xl font-bold sm:text-4xl">Profile Settings</h1>
+          <p className="mt-2 text-base text-muted-foreground sm:text-lg">
             Hello, {formData.firstName || getUserFirstName(null, { email: formData.email })}! Manage your profile information here.
           </p>
         </div>
@@ -140,7 +140,7 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
                   <Input
@@ -192,7 +192,7 @@ export default function ProfilePage() {
               {error && <p className="text-red-500">{error}</p>}
               {success && <p className="text-green-500">{success}</p>}
 
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <Button type="submit" disabled={isSaving}>
                   {isSaving ? (
                     <>

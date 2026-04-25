@@ -386,8 +386,8 @@ export default function VehiclesTab({
   );
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-3xl font-bold text-gray-800">Manage Vehicles</h2>
         <Button onClick={() => setShowAddVehicleModal(true)}>Add Vehicle</Button>
       </div>
@@ -403,68 +403,127 @@ export default function VehiclesTab({
       ) : vehicles.length === 0 ? (
         <p className="text-center text-gray-600">No vehicles found.</p>
       ) : (
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <table className="w-full text-sm text-gray-700">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-4 text-left font-semibold">Image</th>
-                <th className="p-4 text-left font-semibold">Title</th>
-                <th className="p-4 text-left font-semibold">Name</th>
-                <th className="p-4 text-left font-semibold">Passengers</th>
-                <th className="p-4 text-left font-semibold">Bags</th>
-                <th className="p-4 text-left font-semibold">Base Price</th>
-                <th className="p-4 text-left font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vehicles.map((vehicle) => (
-                <tr key={vehicle.id} className="border-b hover:bg-gray-50">
-                  <td className="p-4">
+        <>
+          <div className="space-y-4 md:hidden">
+            {vehicles.map((vehicle) => (
+              <div key={vehicle.id} className="rounded-xl bg-white p-4 shadow-lg">
+                <div className="flex items-start gap-4">
+                  <div className="shrink-0">
                     {vehicle.image_url ? (
                       <Image
-                        width={64}
-                        height={64}
+                        width={80}
+                        height={80}
                         src={vehicle.image_url}
                         alt={vehicle.name}
-                        className="object-cover rounded"
+                        className="h-20 w-20 rounded object-cover"
                       />
                     ) : (
-                      <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-gray-500 text-xs">
+                      <div className="flex h-20 w-20 items-center justify-center rounded bg-gray-200 text-center text-xs text-gray-500">
                         No Image
                       </div>
                     )}
-                  </td>
-                  <td className="p-4">{vehicle.title}</td>
-                  <td className="p-4">{vehicle.name}</td>
-                  <td className="p-4">{vehicle.passengers}</td>
-                  <td className="p-4">{vehicle.bags}</td>
-                  <td className="p-4">£{vehicle.base_price.toFixed(2)}</td>
-                  <td className="p-4 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditClick(vehicle)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeleteVehicle(vehicle.id)}
-                    >
-                      Delete
-                    </Button>
-                  </td>
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-lg font-semibold text-gray-900">{vehicle.name}</p>
+                    <p className="text-sm text-gray-600">{vehicle.title}</p>
+                    <p className="text-sm font-medium text-gray-900">£{vehicle.base_price.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 text-sm text-gray-700 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Passengers</p>
+                    <p>{vehicle.passengers}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Bags</p>
+                    <p>{vehicle.bags}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditClick(vehicle)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteVehicle(vehicle.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-xl bg-white shadow-lg md:block">
+            <table className="w-full text-sm text-gray-700">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-4 text-left font-semibold">Image</th>
+                  <th className="p-4 text-left font-semibold">Title</th>
+                  <th className="p-4 text-left font-semibold">Name</th>
+                  <th className="p-4 text-left font-semibold">Passengers</th>
+                  <th className="p-4 text-left font-semibold">Bags</th>
+                  <th className="p-4 text-left font-semibold">Base Price</th>
+                  <th className="p-4 text-left font-semibold">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {vehicles.map((vehicle) => (
+                  <tr key={vehicle.id} className="border-b hover:bg-gray-50">
+                    <td className="p-4">
+                      {vehicle.image_url ? (
+                        <Image
+                          width={64}
+                          height={64}
+                          src={vehicle.image_url}
+                          alt={vehicle.name}
+                          className="object-cover rounded"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-gray-500 text-xs">
+                          No Image
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-4">{vehicle.title}</td>
+                    <td className="p-4">{vehicle.name}</td>
+                    <td className="p-4">{vehicle.passengers}</td>
+                    <td className="p-4">{vehicle.bags}</td>
+                    <td className="p-4">£{vehicle.base_price.toFixed(2)}</td>
+                    <td className="p-4 flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditClick(vehicle)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteVehicle(vehicle.id)}
+                      >
+                        Delete
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {showAddVehicleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-4 shadow-lg sm:p-6">
             <h3 className="text-xl font-bold mb-4">Add New Vehicle</h3>
             {renderVehicleFormFields(newVehicle, setNewVehicle, newVehicleImage, setNewVehicleImage)}
             <ModalFooter
@@ -480,8 +539,8 @@ export default function VehiclesTab({
       )}
 
       {showEditVehicleModal && editingVehicle && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-4 shadow-lg sm:p-6">
             <h3 className="text-xl font-bold mb-4">Edit Vehicle</h3>
             {renderVehicleFormFields(
               editingVehicle as VehicleFormData,

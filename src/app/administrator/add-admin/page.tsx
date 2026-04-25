@@ -8,6 +8,7 @@ import { onAuthStateChanged } from "@/lib/supabase-auth";
 import { createAdminUser } from "@/lib/adminUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { isAdminUser } from "@/lib/adminUtils";
@@ -124,8 +125,7 @@ export default function AddAdminPage() {
               />
             </div>
             <div>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -137,8 +137,7 @@ export default function AddAdminPage() {
               </p>
             </div>
             <div>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="Confirm Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

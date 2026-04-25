@@ -83,11 +83,11 @@ export default function EditBookingPage({
     }
   };
 
-  if (isLoading) return <div>Loading...</div>;
-  if (!booking) return <div>Booking not found</div>;
+  if (isLoading) return <div className="p-4 sm:p-6">Loading...</div>;
+  if (!booking) return <div className="p-4 sm:p-6">Booking not found</div>;
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto px-4 py-6 sm:py-8">
       <Card>
         <CardHeader>
           <CardTitle>Edit Booking</CardTitle>
@@ -257,7 +257,7 @@ export default function EditBookingPage({
                 </>
               )}
             </div>
-            <div className="flex justify-end space-x-4">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end sm:space-x-0">
               <Button
                 type="button"
                 variant="outline"

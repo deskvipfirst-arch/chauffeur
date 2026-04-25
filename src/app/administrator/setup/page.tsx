@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createFirstAdminUser } from "@/lib/adminUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 
@@ -51,8 +52,7 @@ export default function SetupAdminPage() {
               />
             </div>
             <div>
-              <Input
-                type="password"
+              <PasswordInput
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

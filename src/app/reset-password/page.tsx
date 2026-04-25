@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/supabase";
 import { verifyPasswordResetCode, confirmPasswordReset } from "@/lib/supabase-auth";
@@ -77,8 +78,7 @@ function ResetPasswordPageContent() {
               </div>
               <div>
                 <label className="block text-sm mb-1">New Password</label>
-                <Input
-                  type="password"
+                <PasswordInput
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
                   required
@@ -87,8 +87,7 @@ function ResetPasswordPageContent() {
               </div>
               <div>
                 <label className="block text-sm mb-1">Confirm Password</label>
-                <Input
-                  type="password"
+                <PasswordInput
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   required

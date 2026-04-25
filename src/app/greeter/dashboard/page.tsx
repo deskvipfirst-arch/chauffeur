@@ -222,9 +222,9 @@ export default function GreeterDashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="mx-auto max-w-5xl space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Greeter Dashboard</h1>
             <p className="text-sm text-slate-600">View assigned jobs and update live service progress.</p>
@@ -256,12 +256,12 @@ export default function GreeterDashboardPage() {
 
               return (
                 <Card key={job.id}>
-                  <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                  <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <CardTitle className="text-lg">{job.booking_ref || "Unreferenced Job"}</CardTitle>
                       <p className="text-sm text-slate-600">{job.full_name || "Guest passenger"}</p>
                     </div>
-                    <Badge>{getGreeterStatusLabel(currentStatus)}</Badge>
+                    <Badge className="w-fit">{getGreeterStatusLabel(currentStatus)}</Badge>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-slate-700">
                     <p><span className="font-semibold">Service:</span> {job.service_type}</p>
@@ -346,6 +346,7 @@ export default function GreeterDashboardPage() {
                           <Button
                             onClick={() => handleSubmitInvoice(job)}
                             disabled={submittingInvoiceId === job.id}
+                            className="w-full sm:w-auto"
                           >
                             {submittingInvoiceId === job.id ? "Submitting..." : "Submit invoice"}
                           </Button>

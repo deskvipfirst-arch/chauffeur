@@ -364,6 +364,13 @@ export function Header() {
         {/* Mobile Nav Links */}
         <nav className="flex flex-col mt-16 space-y-6 px-6">
           <Link
+            href="/booking"
+            onClick={toggleMenu}
+            className="rounded-md bg-primary px-4 py-3 text-center text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Book Now
+          </Link>
+          <Link
             href="/"
             onClick={toggleMenu}
             className="text-sm font-medium hover:text-primary"

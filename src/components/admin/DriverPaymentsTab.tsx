@@ -239,8 +239,8 @@ export default function DriverPaymentsTab({
   );
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-3xl font-bold text-gray-800">Manage Driver Payments</h2>
         <Button onClick={() => setShowAddPaymentModal(true)}>Add Payment</Button>
       </div>
@@ -256,54 +256,95 @@ export default function DriverPaymentsTab({
       ) : driverPayments.length === 0 ? (
         <p className="text-center text-gray-600">No payments found.</p>
       ) : (
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <table className="w-full text-sm text-gray-700">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-4 text-left font-semibold">Driver</th>
-                <th className="p-4 text-left font-semibold">Booking ID</th>
-                <th className="p-4 text-left font-semibold">Amount</th>
-                <th className="p-4 text-left font-semibold">Status</th>
-                <th className="p-4 text-left font-semibold">Payment Method</th>
-                <th className="p-4 text-left font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {driverPayments.map((payment) => (
-                  <tr key={payment.id} className="border-b hover:bg-gray-50">
-                    <td className="p-4">
-                    {drivers.find((d) => d.id === payment.driver_id)?.full_name || "Unknown Driver"}
-                    </td>
-                  <td className="p-4">{payment.booking_id}</td>
-                    <td className="p-4">£{payment.amount.toFixed(2)}</td>
-                  <td className="p-4">{payment.status}</td>
-                    <td className="p-4">{payment.payment_method}</td>
-                  <td className="p-4 flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                      onClick={() => handleEditClick(payment)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeletePayment(payment.id)}
-                    >
-                      Delete
-                        </Button>
-                    </td>
-                  </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="space-y-4 md:hidden">
+            {driverPayments.map((payment) => (
+              <div key={payment.id} className="rounded-xl bg-white p-4 shadow-lg">
+                <div className="grid gap-3 text-sm text-gray-700 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Driver</p>
+                    <p className="font-semibold text-gray-900">
+                      {drivers.find((d) => d.id === payment.driver_id)?.full_name || "Unknown Driver"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Booking ID</p>
+                    <p className="break-all">{payment.booking_id}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Amount</p>
+                    <p className="font-semibold text-gray-900">£{payment.amount.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Status</p>
+                    <p>{payment.status}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Payment Method</p>
+                    <p>{payment.payment_method}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleEditClick(payment)}>
+                    Edit
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDeletePayment(payment.id)}>
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-xl bg-white shadow-lg md:block">
+            <table className="w-full text-sm text-gray-700">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-4 text-left font-semibold">Driver</th>
+                  <th className="p-4 text-left font-semibold">Booking ID</th>
+                  <th className="p-4 text-left font-semibold">Amount</th>
+                  <th className="p-4 text-left font-semibold">Status</th>
+                  <th className="p-4 text-left font-semibold">Payment Method</th>
+                  <th className="p-4 text-left font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {driverPayments.map((payment) => (
+                    <tr key={payment.id} className="border-b hover:bg-gray-50">
+                      <td className="p-4">
+                      {drivers.find((d) => d.id === payment.driver_id)?.full_name || "Unknown Driver"}
+                      </td>
+                    <td className="p-4">{payment.booking_id}</td>
+                      <td className="p-4">£{payment.amount.toFixed(2)}</td>
+                    <td className="p-4">{payment.status}</td>
+                      <td className="p-4">{payment.payment_method}</td>
+                    <td className="p-4 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                        onClick={() => handleEditClick(payment)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeletePayment(payment.id)}
+                      >
+                        Delete
+                          </Button>
+                      </td>
+                    </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {showAddPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-4 shadow-lg sm:p-6">
             <h3 className="text-xl font-bold mb-4">Add New Payment</h3>
             {renderPaymentFormFields(newPayment, setNewPayment)}
             <ModalFooter
@@ -316,8 +357,8 @@ export default function DriverPaymentsTab({
       )}
 
       {showEditPaymentModal && editPaymentForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-4 shadow-lg sm:p-6">
             <h3 className="text-xl font-bold mb-4">Edit Payment</h3>
             {renderPaymentFormFields(editPaymentForm, setEditPaymentForm as React.Dispatch<React.SetStateAction<PaymentFormState>>)}
             <ModalFooter

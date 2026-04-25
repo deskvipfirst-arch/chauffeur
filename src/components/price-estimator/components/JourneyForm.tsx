@@ -185,7 +185,7 @@ export default function JourneyForm({
       <div className="grid gap-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* Pickup Location */}
-          <div className="w-full sm:w-[240px] space-y-3">
+          <div className="w-full space-y-3">
             <Label>Pickup Location</Label>
             <Select
               value={formData.pickupLocationId || ""}
@@ -230,7 +230,7 @@ export default function JourneyForm({
 
           {/* Meet & Greet Type */}
           {formData.service_subtype && setFormData.setServiceSubType && (
-            <div className="w-full sm:w-[240px] space-y-3">
+            <div className="w-full space-y-3">
               <Label>Meet & Greet Type</Label>
               <Select
                 value={formData.service_subtype}
@@ -251,7 +251,7 @@ export default function JourneyForm({
 
           {/* Dropoff Location for Airport Transfer */}
           {type === "airportTransfer" && setFormData.setDropoffLocationId && (
-            <div className="w-full sm:w-[240px] space-y-3">
+            <div className="w-full space-y-3">
               <Label>Dropoff Location</Label>
               <Select
                 value={formData.dropoffLocationId || ""}
@@ -296,7 +296,7 @@ export default function JourneyForm({
           )}
 
           {formData.service_subtype === "connection" && setFormData.setDropoffLocationId && (
-            <div className="w-full sm:w-[240px] space-y-3">
+            <div className="w-full space-y-3">
               <Label>Dropoff Location</Label>
               <Select
                 value={formData.dropoffLocationId || ""}
@@ -359,7 +359,7 @@ export default function JourneyForm({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* Date */}
-          <div className="w-full sm:w-[240px] space-y-3">
+          <div className="w-full space-y-3">
             <Label>Date</Label>
             <DatePicker
               selected={formData.date}
@@ -384,7 +384,7 @@ export default function JourneyForm({
           </div>
 
           {/* Time */}
-          <div className="w-full sm:w-[240px] space-y-3">
+          <div className="w-full space-y-3">
             <Label>Time</Label>
             <div className="relative">
               <input
@@ -491,7 +491,7 @@ export default function JourneyForm({
 
         {/* Combined Warnings Row */}
         {(formData.additionalHours > 0 || formData.passengers > 2) && (
-          <div className="flex gap-4 mt-2">
+          <div className="mt-2 flex flex-col gap-4 sm:flex-row">
             {formData.additionalHours > 0 && type !== "hourlyHire" && (
               <div className="p-3 bg-amber-100 text-amber-800 rounded-md flex-1">
                 <p className="text-xs">

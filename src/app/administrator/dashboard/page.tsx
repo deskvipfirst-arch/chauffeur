@@ -6,6 +6,7 @@ import DriverPaymentsTab from "@/components/admin/DriverPaymentsTab";
 import InvoicesTab from "@/components/admin/InvoicesTab";
 import PriceSettingsTab from "@/components/admin/PriceSettingsTab";
 import BookingRow from "@/components/admin/BookingRow";
+import MobileBookingCard from "@/components/admin/MobileBookingCard";
 import {
   fetchVehicles,
   fetchBookings,
@@ -49,6 +50,7 @@ import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs
 import { filterHeathrowBookings, getMonitoringPriority } from "@/lib/heathrowMonitoring";
 import { buildAssignmentNotification, buildGreeterStatusNotification, buildOperationsAlerts } from "@/lib/notifications";
 import { getPrimaryFlightNumber } from "@/lib/flightStatus";
+import { useIsMobile } from "@/lib/hooks/use-mobile";
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -73,6 +75,7 @@ export default function AdminDashboard() {
   const [isSavingOfficeInbox, setIsSavingOfficeInbox] = useState(false);
   const lastHandledAuthUidRef = useRef<string | null>(null);
   const router = useRouter();
+  const isMobile = useIsMobile();
 
   // State for vehicles
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -502,7 +505,11 @@ export default function AdminDashboard() {
               <h2 className="text-lg font-semibold">{isHeathrowOnly ? "Heathrow Monitor" : "Admin Panel"}</h2>
             )}
             <SidebarTrigger
-              onClick={() => setIsSidebarOpen((prev) => !prev)}
+              onClick={() => {
+                if (!isMobile) {
+                  setIsSidebarOpen((prev) => !prev);
+                }
+              }}
               className="p-2 rounded-md hover:bg-gray-700"
             >
               {isSidebarOpen ? <ChevronLeft className="h-5 w-5 text-white" /> : <ChevronRight className="h-5 w-5 text-white" />}
@@ -588,11 +595,20 @@ export default function AdminDashboard() {
         <div
           className={cn(
             "flex-1 transition-all duration-300 w-full bg-gray-100",
-            isSidebarOpen ? "ml-64" : "ml-16"
+            isSidebarOpen ? "md:ml-64" : "md:ml-16"
           )}
         >
           {/* Top Navigation Bar */}
-          <div className="bg-white border-b px-6 py-3 flex justify-end items-center">
+          <div className="bg-white border-b px-4 py-3 sm:px-6 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger className="md:hidden" />
+              <div className="md:hidden">
+                <p className="text-sm font-semibold text-gray-900">
+                  {isHeathrowOnly ? "Heathrow Monitor" : "Admin Panel"}
+                </p>
+              </div>
+            </div>
+
             <DropdownMenu>
               <DropdownMenuTrigger className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
@@ -634,7 +650,7 @@ export default function AdminDashboard() {
             </DropdownMenu>
           </div>
 
-          <div className="p-6 w-full">
+          <div className="p-4 sm:p-6 w-full">
             {activeTab === "bookings" && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -762,35 +778,53 @@ export default function AdminDashboard() {
                   ) : bookings.length === 0 ? (
                     <div className="p-4 text-sm text-gray-500">No bookings available yet.</div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50 text-left text-gray-600">
-                          <tr>
-                            <th className="p-4">Booking Ref</th>
-                            <th className="p-4">Created</th>
-                            <th className="p-4">Passenger</th>
-                            <th className="p-4">Pickup</th>
-                            <th className="p-4">Amount</th>
-                            <th className="p-4">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {bookings
-                            .filter((booking) => booking.status !== "deleted")
-                            .map((booking) => (
-                              <BookingRow
-                                key={booking.id}
-                                booking={booking}
-                                drivers={drivers}
-                                handleUpdateBookingStatus={handleUpdateBookingStatus}
-                                handleAssignDriver={handleAssignDriver}
-                                handleMarkBookingCompleted={handleMarkBookingCompleted}
-                                handleDeleteBooking={handleDeleteBooking}
-                              />
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <>
+                      <div className="space-y-4 p-4 md:hidden">
+                        {bookings
+                          .filter((booking) => booking.status !== "deleted")
+                          .map((booking) => (
+                            <MobileBookingCard
+                              key={booking.id}
+                              booking={booking}
+                              drivers={drivers}
+                              handleUpdateBookingStatus={handleUpdateBookingStatus}
+                              handleAssignDriver={handleAssignDriver}
+                              handleMarkBookingCompleted={handleMarkBookingCompleted}
+                              handleDeleteBooking={handleDeleteBooking}
+                            />
+                          ))}
+                      </div>
+
+                      <div className="hidden overflow-x-auto md:block">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-gray-50 text-left text-gray-600">
+                            <tr>
+                              <th className="p-4">Booking Ref</th>
+                              <th className="p-4">Created</th>
+                              <th className="p-4">Passenger</th>
+                              <th className="p-4">Pickup</th>
+                              <th className="p-4">Amount</th>
+                              <th className="p-4">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {bookings
+                              .filter((booking) => booking.status !== "deleted")
+                              .map((booking) => (
+                                <BookingRow
+                                  key={booking.id}
+                                  booking={booking}
+                                  drivers={drivers}
+                                  handleUpdateBookingStatus={handleUpdateBookingStatus}
+                                  handleAssignDriver={handleAssignDriver}
+                                  handleMarkBookingCompleted={handleMarkBookingCompleted}
+                                  handleDeleteBooking={handleDeleteBooking}
+                                />
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
