@@ -3,7 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { PriceEstimator } from "@/components/price-estimator/PriceEstimator"
 import { Suspense } from "react"
-import { APP_TITLE, APP_DESCRIPTION } from "@/lib/globalConfig"
+import { APP_TITLE, APP_SUBTITLE } from "@/lib/globalConfig"
 
 
 export default function Home() {
@@ -23,7 +23,7 @@ export default function Home() {
             <div className="flex flex-col justify-center text-white">
               <h1 className="text-4xl md:text-6xl font-bold mb-4">{APP_TITLE}</h1>
               <p className="text-xl md:text-2xl mb-8 max-w-xl">
-                {APP_DESCRIPTION}
+                {APP_SUBTITLE}
               </p>
               <Link
                 href="#estimate"
