@@ -1,6 +1,6 @@
 import { db, getAccessToken } from "@/lib/supabase";
 import { collection, getDocs, query, orderBy } from "@/lib/supabase-db";
-import { Vehicle, Booking, Driver, DriverPayment, Location, ServicePricing, ExtraCharge, GreeterInvoice } from "@/types/admin";
+import { Vehicle, Booking, Driver, DriverPayment, Location, ServicePricing, ExtraCharge, GreeterInvoice, OfficeStaff } from "@/types/admin";
 import { COLLECTIONS } from "@/lib/types";
 
 type FetchResult<T> = {
@@ -264,5 +264,38 @@ export const fetchExtraCharges = async (): Promise<FetchResult<ExtraCharge>> => 
   } catch {
     isLoading = false;
     return { data: [], error: null, isLoading };
+  }
+};
+
+export const fetchOfficeStaff = async (): Promise<FetchResult<OfficeStaff>> => {
+  let isLoading = true;
+  try {
+    const token = await getAccessToken();
+    const response = await fetch("/api/admin/staff", {
+      cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!response.ok) {
+      throw new Error("Failed to load office staff");
+    }
+
+    const payload = await response.json();
+    const data = Array.isArray(payload)
+      ? payload.map((staff) => ({
+          id: String(staff.id || ""),
+          first_name: String(staff.first_name || staff.firstName || "").trim() || undefined,
+          last_name: String(staff.last_name || staff.lastName || "").trim() || undefined,
+          email: String(staff.email || "").toLowerCase(),
+          role: String(staff.role || "user").toLowerCase(),
+          created_at: staff.created_at || staff.createdAt || undefined,
+        }))
+      : [];
+
+    isLoading = false;
+    return { data, error: null, isLoading };
+  } catch (err: unknown) {
+    console.error("Error fetching office staff:", err);
+    isLoading = false;
+    return { data: null, error: err instanceof Error ? err.message : "Failed to load office staff", isLoading };
   }
 };

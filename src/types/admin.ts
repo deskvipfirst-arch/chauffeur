@@ -71,6 +71,15 @@ export type Driver = {
   status: string;
 };
 
+export type OfficeStaff = {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  email: string;
+  role: string;
+  created_at?: string;
+};
+
 export type DriverPayment = {
   id: string;
   created_at: string;

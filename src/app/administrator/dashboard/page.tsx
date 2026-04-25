@@ -1,38 +1,35 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import VehiclesTab from "@/components/admin/VehiclesTab";
+import { useRouter } from "next/navigation";
+import {
+  Calendar,
+  Car,
+  ChevronLeft,
+  Clock3,
+  DollarSign,
+  FileText,
+  Key,
+  LayoutGrid,
+  LogOut,
+  Menu,
+  RefreshCw,
+  Search,
+  Settings,
+  Shield,
+  User,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import BookingRow from "@/components/admin/BookingRow";
 import DriverPaymentsTab from "@/components/admin/DriverPaymentsTab";
 import InvoicesTab from "@/components/admin/InvoicesTab";
-import PriceSettingsTab from "@/components/admin/PriceSettingsTab";
-import BookingRow from "@/components/admin/BookingRow";
 import MobileBookingCard from "@/components/admin/MobileBookingCard";
-import {
-  fetchVehicles,
-  fetchBookings,
-  fetchDrivers,
-  fetchDriverPayments,
-  fetchGreeterInvoices,
-  fetchLocations,
-  fetchServicePricing,
-  fetchExtraCharges,
-} from "@/lib/adminFetch";
-import { Vehicle, Booking, Driver, DriverPayment, GreeterInvoice } from "@/types/admin";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarMenuItem,
-  SidebarTrigger,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
-import { ChevronLeft, ChevronRight, Car, Calendar, DollarSign, FileText, Settings, User, LogOut, Shield, Key } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { auth, getAccessToken } from "@/lib/supabase";
-import { onAuthStateChanged } from "@/lib/supabase-auth";
-import { useRouter } from "next/navigation";
-import { getUserRole, isAllowedRole } from "@/lib/adminUtils";
-import { buildUnauthorizedNotification } from "@/lib/notifications";
+import PriceSettingsTab from "@/components/admin/PriceSettingsTab";
+import VehiclesTab from "@/components/admin/VehiclesTab";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,64 +38,129 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-// import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { toast } from "sonner";
-import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
-import { filterHeathrowBookings, getMonitoringPriority } from "@/lib/heathrowMonitoring";
-import { buildAssignmentNotification, buildGreeterStatusNotification, buildOperationsAlerts } from "@/lib/notifications";
+import {
+  fetchBookings,
+  fetchDriverPayments,
+  fetchDrivers,
+  fetchExtraCharges,
+  fetchGreeterInvoices,
+  fetchLocations,
+  fetchOfficeStaff,
+  fetchServicePricing,
+  fetchVehicles,
+} from "@/lib/adminFetch";
+import { getUserRole, isAllowedRole } from "@/lib/adminUtils";
 import { getPrimaryFlightNumber } from "@/lib/flightStatus";
-import { useIsMobile } from "@/lib/hooks/use-mobile";
+import { filterHeathrowBookings, getMonitoringPriority } from "@/lib/heathrowMonitoring";
+import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
+import {
+  buildAssignmentNotification,
+  buildGreeterStatusNotification,
+  buildOperationsAlerts,
+  buildUnauthorizedNotification,
+} from "@/lib/notifications";
+import { auth, getAccessToken } from "@/lib/supabase";
+import { onAuthStateChanged } from "@/lib/supabase-auth";
+import { cn } from "@/lib/utils";
+import type { Booking, Driver, DriverPayment, GreeterInvoice, OfficeStaff, Vehicle } from "@/types/admin";
+
+type ActiveTab =
+  | "overview"
+  | "people"
+  | "passengers"
+  | "bookings"
+  | "vehicles"
+  | "payments"
+  | "invoices"
+  | "priceSettings"
+  | "heathrow";
+
+type DensityMode = "comfortable" | "compact";
+
+type EmailStatus = {
+  configured: boolean;
+  fromEmail: string | null;
+  officeDestination: string | null;
+  officeDestinationValue?: string;
+  missing: string[];
+};
+
+const ACTIVE_TAB_LABELS: Record<ActiveTab, string> = {
+  overview: "Overview",
+  people: "People",
+  passengers: "Passengers",
+  bookings: "Dispatch",
+  vehicles: "Fleet",
+  payments: "Payments",
+  invoices: "Invoices",
+  priceSettings: "Pricing",
+  heathrow: "Heathrow Monitor",
+};
+
+const ACTIVE_TAB_DESCRIPTIONS: Record<ActiveTab, string> = {
+  overview: "Operational health, urgent signals, and shortcuts",
+  people: "Greeters, availability, and office staffing",
+  passengers: "Passenger timelines across past, present, and future",
+  bookings: "Dispatch board and job lifecycle management",
+  vehicles: "Fleet inventory and maintenance controls",
+  payments: "Driver payment operations and settlement status",
+  invoices: "Greeter invoice review and office approvals",
+  priceSettings: "Rates, locations, and extra charge controls",
+  heathrow: "Airport monitoring, flight status, and live readiness",
+};
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [canAccessDashboard, setCanAccessDashboard] = useState(false);
   const [isMonitoringOnly, setIsMonitoringOnly] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<
-    "vehicles" | "bookings" | "payments" | "invoices" | "priceSettings" | "heathrow"
-  >("bookings");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
+  const [densityMode, setDensityMode] = useState<DensityMode>("comfortable");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [userEmail, setUserEmail] = useState<string>("");
-  const [emailStatus, setEmailStatus] = useState<{
-    configured: boolean;
-    fromEmail: string | null;
-    officeDestination: string | null;
-    officeDestinationValue?: string;
-    missing: string[];
-  } | null>(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const [isEmailStatusLoading, setIsEmailStatusLoading] = useState(true);
   const [isSendingEmailTest, setIsSendingEmailTest] = useState(false);
   const [officeInboxInput, setOfficeInboxInput] = useState("");
   const [isSavingOfficeInbox, setIsSavingOfficeInbox] = useState(false);
-  const lastHandledAuthUidRef = useRef<string | null>(null);
-  const router = useRouter();
-  const isMobile = useIsMobile();
 
-  // State for vehicles
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
   const [vehicleError, setVehicleError] = useState<string | null>(null);
 
-  // State for bookings
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [bookingError, setBookingError] = useState<string | null>(null);
 
-  // State for drivers
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [officeStaff, setOfficeStaff] = useState<OfficeStaff[]>([]);
+  const [staffError, setStaffError] = useState<string | null>(null);
 
-  // State for driver payments
   const [driverPayments, setDriverPayments] = useState<DriverPayment[]>([]);
   const [isLoadingPayments, setIsLoadingPayments] = useState(true);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
   const [greeterInvoices, setGreeterInvoices] = useState<GreeterInvoice[]>([]);
   const [flightStatuses, setFlightStatuses] = useState<Record<string, { status: string; terminal: string | null; source: string }>>({});
 
+  const [peopleQuery, setPeopleQuery] = useState("");
+  const [staffRoleFilter, setStaffRoleFilter] = useState<"all" | "admin" | "heathrow">("all");
+  const [passengerQuery, setPassengerQuery] = useState("");
+
+  const lastHandledAuthUidRef = useRef<string | null>(null);
+  const router = useRouter();
+
   const isHeathrowOnly = isMonitoringOnly;
   const canManageOperations = !isHeathrowOnly;
+
+  const shellPadding = densityMode === "compact" ? "p-3 sm:p-4" : "p-4 sm:p-6";
+  const sectionGap = densityMode === "compact" ? "space-y-4" : "space-y-6";
+  const cardClass = "rounded-2xl border border-slate-200/80 bg-white shadow-[0_10px_35px_rgba(15,23,42,0.06)]";
+  const metricCardClass = cn(cardClass, densityMode === "compact" ? "p-4" : "p-5");
+  const panelClass = cn(cardClass, "overflow-hidden");
 
   const fetchEmailStatus = async () => {
     try {
@@ -122,40 +184,47 @@ export default function AdminDashboard() {
     }
   };
 
-  const refreshDashboardData = async (monitoringOnly: boolean) => {
-    if (monitoringOnly) {
-      await fetchBookings().then(({ data, error, isLoading }) => {
-        setBookings(data || []);
-        setBookingError(error);
-        setIsLoadingBookings(isLoading);
-      });
-      return;
-    }
-
+  const loadOperationsData = async () => {
     await Promise.all([
-      fetchVehicles().then(({ data, error, isLoading }) => {
+      fetchVehicles().then(({ data, error, isLoading: loading }) => {
         setVehicles(data || []);
         setVehicleError(error);
-        setIsLoadingVehicles(isLoading);
+        setIsLoadingVehicles(loading);
       }),
-      fetchBookings().then(({ data, error, isLoading }) => {
+      fetchBookings().then(({ data, error, isLoading: loading }) => {
         setBookings(data || []);
         setBookingError(error);
-        setIsLoadingBookings(isLoading);
+        setIsLoadingBookings(loading);
       }),
       fetchDrivers().then(({ data }) => {
         setDrivers(data || []);
       }),
-      fetchDriverPayments().then(({ data, error, isLoading }) => {
+      fetchOfficeStaff().then(({ data, error }) => {
+        setOfficeStaff(data || []);
+        setStaffError(error);
+      }),
+      fetchDriverPayments().then(({ data, error, isLoading: loading }) => {
         setDriverPayments(data || []);
         setPaymentError(error);
-        setIsLoadingPayments(isLoading);
+        setIsLoadingPayments(loading);
       }),
       fetchGreeterInvoices().then(({ data }) => {
         setGreeterInvoices(data || []);
       }),
       fetchEmailStatus(),
     ]);
+  };
+
+  const refreshDashboardData = async (monitoringOnly: boolean) => {
+    if (monitoringOnly) {
+      const { data, error, isLoading: loading } = await fetchBookings();
+      setBookings(data || []);
+      setBookingError(error);
+      setIsLoadingBookings(loading);
+      return;
+    }
+
+    await loadOperationsData();
   };
 
   useEffect(() => {
@@ -188,9 +257,9 @@ export default function AdminDashboard() {
         setIsAuthenticated(true);
         setCanAccessDashboard(true);
         setIsMonitoringOnly(monitoringOnly);
-        setIsLoading(false);
         setUserEmail(user.email || "");
-        setActiveTab(monitoringOnly ? "heathrow" : "bookings");
+        setActiveTab(monitoringOnly ? "heathrow" : "overview");
+        setIsLoading(false);
 
         await refreshDashboardData(monitoringOnly);
       } catch (error) {
@@ -200,17 +269,11 @@ export default function AdminDashboard() {
       }
     });
 
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   const updateBookingInState = (bookingId: string, updates: Partial<Booking>) => {
-    setBookings((current) =>
-      current.map((booking) =>
-        booking.id === bookingId ? { ...booking, ...updates } : booking
-      )
-    );
+    setBookings((current) => current.map((booking) => (booking.id === bookingId ? { ...booking, ...updates } : booking)));
   };
 
   const handleUpdateBookingStatus = async (bookingId: string, newStatus: string) => {
@@ -238,17 +301,8 @@ export default function AdminDashboard() {
     const isUnassign = value === "unassign";
     const token = await getAccessToken();
     const requestBody = isUnassign
-      ? {
-          driver_id: null,
-          driver_status: "unassigned",
-          assigned_at: null,
-        }
-      : {
-          driver_id: value,
-          driver_status: "assigned",
-          status: "assigned",
-          assigned_at: new Date().toISOString(),
-        };
+      ? { driver_id: null, driver_status: "unassigned", assigned_at: null }
+      : { driver_id: value, driver_status: "assigned", status: "assigned", assigned_at: new Date().toISOString() };
 
     let response = await fetch(`/api/admin/bookings/${bookingId}`, {
       method: "PUT",
@@ -288,8 +342,7 @@ export default function AdminDashboard() {
     if (isUnassign) {
       toast.success("Greeter unassigned");
     } else {
-      const notice = buildAssignmentNotification(result.booking_ref || bookingId);
-      toast.success(notice.message);
+      toast.success(buildAssignmentNotification(result.booking_ref || bookingId).message);
     }
   };
 
@@ -315,34 +368,7 @@ export default function AdminDashboard() {
     }
 
     updateBookingInState(bookingId, result);
-    const notice = buildGreeterStatusNotification("completed", result.booking_ref || bookingId);
-    toast.success(notice.message);
-  };
-
-  const loadFlightStatuses = async (items: Booking[]) => {
-    const relevant = filterHeathrowBookings(items);
-    const flights = Array.from(
-      new Set(relevant.map((booking) => getPrimaryFlightNumber(booking)).filter(Boolean))
-    );
-
-    if (flights.length === 0) {
-      setFlightStatuses({});
-      return;
-    }
-
-    const entries = await Promise.all(
-      flights.map(async (flight) => {
-        try {
-          const response = await fetch(`/api/flight-status?flight=${encodeURIComponent(flight)}`, { cache: "no-store" });
-          const payload = response.ok ? await response.json() : null;
-          return [flight, { status: payload?.status || "Unknown", terminal: payload?.terminal || null, source: payload?.source || "fallback" }] as const;
-        } catch {
-          return [flight, { status: "Unknown", terminal: null, source: "fallback" }] as const;
-        }
-      })
-    );
-
-    setFlightStatuses(Object.fromEntries(entries));
+    toast.success(buildGreeterStatusNotification("completed", result.booking_ref || bookingId).message);
   };
 
   const handleDeleteBooking = async (bookingId: string) => {
@@ -418,12 +444,38 @@ export default function AdminDashboard() {
     }
   };
 
+  const loadFlightStatuses = async (items: Booking[]) => {
+    const relevant = filterHeathrowBookings(items);
+    const flights = Array.from(new Set(relevant.map((booking) => getPrimaryFlightNumber(booking)).filter(Boolean)));
+
+    if (flights.length === 0) {
+      setFlightStatuses({});
+      return;
+    }
+
+    const entries = await Promise.all(
+      flights.map(async (flight) => {
+        try {
+          const response = await fetch(`/api/flight-status?flight=${encodeURIComponent(flight)}`, { cache: "no-store" });
+          const payload = response.ok ? await response.json() : null;
+          return [flight, { status: payload?.status || "Unknown", terminal: payload?.terminal || null, source: payload?.source || "fallback" }] as const;
+        } catch {
+          return [flight, { status: "Unknown", terminal: null, source: "fallback" }] as const;
+        }
+      })
+    );
+
+    setFlightStatuses(Object.fromEntries(entries));
+  };
+
   useEffect(() => {
     void loadFlightStatuses(bookings);
   }, [bookings]);
 
   useEffect(() => {
-    if (!isAuthenticated || !canAccessDashboard) return;
+    if (!isAuthenticated || !canAccessDashboard) {
+      return;
+    }
 
     const stopPolling = createPollingInterval(() => refreshDashboardData(isHeathrowOnly), 15000);
     const onVisibilityChange = () => {
@@ -443,7 +495,6 @@ export default function AdminDashboard() {
   const handleLogout = async () => {
     try {
       await auth.signOut();
-      // Clear session cookie
       document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       toast.success("Successfully signed out");
       window.location.replace("/administrator/signin");
@@ -453,351 +504,592 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleManualRefresh = async () => {
+    await refreshDashboardData(isHeathrowOnly);
+    toast.success("Dashboard refreshed");
+  };
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="flex min-h-screen items-center justify-center bg-slate-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-slate-900" />
+          <p className="mt-4 text-slate-600">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   if (!isAuthenticated || !canAccessDashboard) {
-    return null; // Will redirect in useEffect
+    return null;
   }
 
-  // Calculate stats
   const totalBookings = bookings.length;
   const normalizeServiceType = (value?: string) => String(value || "").toLowerCase();
-  const meetAndGreetBookings = bookings.filter((b) => {
-    const type = normalizeServiceType(b.service_type);
+  const meetAndGreetBookings = bookings.filter((booking) => {
+    const type = normalizeServiceType(booking.service_type);
     return type.includes("meet") || type.includes("assist");
   }).length;
-  const airportTransferBookings = bookings.filter((b) => {
-    const type = normalizeServiceType(b.service_type);
+  const airportTransferBookings = bookings.filter((booking) => {
+    const type = normalizeServiceType(booking.service_type);
     return type.includes("airport") || type.includes("transfer");
   }).length;
-  const hourlyHireBookings = bookings.filter((b) => {
-    const type = normalizeServiceType(b.service_type);
-    return type.includes("hour");
-  }).length;
-  const totalRevenue = bookings.reduce((sum, b) => sum + (b.amount || 0), 0);
-  const activeDrivers = drivers.filter((d) => d.status === "active").length;
-  const activeJobs = bookings.filter((b) => ["assigned", "accepted", "picked_up"].includes(String(b.driver_status || b.status))).length;
-  const completedJobs = bookings.filter((b) => String(b.driver_status || b.status) === "completed").length;
+  const hourlyHireBookings = bookings.filter((booking) => normalizeServiceType(booking.service_type).includes("hour")).length;
+  const totalRevenue = bookings.reduce((sum, booking) => sum + (booking.amount || 0), 0);
+  const activeDrivers = drivers.filter((driver) => driver.status === "active").length;
+  const activeJobs = bookings.filter((booking) => ["assigned", "accepted", "picked_up"].includes(String(booking.driver_status || booking.status))).length;
+  const completedJobs = bookings.filter((booking) => String(booking.driver_status || booking.status) === "completed").length;
   const heathrowBookings = filterHeathrowBookings(bookings);
   const officeAlerts = buildOperationsAlerts({ bookings, invoices: greeterInvoices });
+  const now = new Date();
+  const futureBookings = bookings.filter((booking) => new Date(booking.date_time) > now);
+  const presentBookings = bookings.filter((booking) => {
+    const scheduleTime = new Date(booking.date_time).getTime();
+    const diffHours = Math.abs(now.getTime() - scheduleTime) / (1000 * 60 * 60);
+    return diffHours <= 6 || ["assigned", "accepted", "picked_up"].includes(String(booking.driver_status || booking.status));
+  });
+  const pastBookings = bookings.filter((booking) => new Date(booking.date_time) < now);
+
+  const greeterAvailability = drivers.map((driver) => {
+    const assignedJobs = bookings.filter((booking) => {
+      if (String(booking.driver_id || "") !== String(driver.id)) {
+        return false;
+      }
+      return ["assigned", "accepted", "picked_up"].includes(String(booking.driver_status || booking.status || ""));
+    });
+
+    const nextJob = bookings
+      .filter((booking) => String(booking.driver_id || "") === String(driver.id) && new Date(booking.date_time) >= now)
+      .sort((left, right) => new Date(left.date_time).getTime() - new Date(right.date_time).getTime())[0];
+
+    return {
+      ...driver,
+      assignedJobs,
+      nextJob,
+      availability: driver.status === "active" && assignedJobs.length === 0 ? "available" : "unavailable",
+    };
+  });
+
+  const normalizedPeopleQuery = peopleQuery.trim().toLowerCase();
+  const filteredGreeterAvailability = greeterAvailability.filter((greeter) => {
+    if (!normalizedPeopleQuery) {
+      return true;
+    }
+    return `${greeter.full_name} ${greeter.email} ${greeter.phone}`.toLowerCase().includes(normalizedPeopleQuery);
+  });
+
+  const filteredOfficeStaff = officeStaff.filter((staff) => {
+    const role = String(staff.role || "user").toLowerCase();
+    const roleMatches = staffRoleFilter === "all" ? true : role === staffRoleFilter;
+    if (!roleMatches) {
+      return false;
+    }
+
+    if (!normalizedPeopleQuery) {
+      return true;
+    }
+
+    const fullName = [staff.first_name, staff.last_name].filter(Boolean).join(" ").toLowerCase();
+    return `${fullName} ${staff.email} ${role}`.includes(normalizedPeopleQuery);
+  });
+
+  const normalizedPassengerQuery = passengerQuery.trim().toLowerCase();
+  const filterPassengerBookings = (items: Booking[]) =>
+    items.filter((booking) => {
+      if (!normalizedPassengerQuery) {
+        return true;
+      }
+      return `${booking.full_name || ""} ${booking.email || ""} ${booking.phone || ""} ${booking.booking_ref || ""} ${booking.pickup_location || ""} ${booking.dropoff_location || ""}`
+        .toLowerCase()
+        .includes(normalizedPassengerQuery);
+    });
+
+  const filteredFutureBookings = filterPassengerBookings(futureBookings);
+  const filteredPresentBookings = filterPassengerBookings(presentBookings);
+  const filteredPastBookings = filterPassengerBookings(pastBookings);
+
+  const activeTabLabel = ACTIVE_TAB_LABELS[activeTab];
+  const activeTabDescription = ACTIVE_TAB_DESCRIPTIONS[activeTab];
+
+  const navItems = [
+    !isHeathrowOnly ? { id: "overview" as ActiveTab, label: "Overview", icon: LayoutGrid } : null,
+    !isHeathrowOnly ? { id: "people" as ActiveTab, label: "People", icon: Users } : null,
+    !isHeathrowOnly ? { id: "passengers" as ActiveTab, label: "Passengers", icon: Clock3 } : null,
+    canManageOperations ? { id: "bookings" as ActiveTab, label: "Dispatch", icon: Calendar } : null,
+    canManageOperations ? { id: "vehicles" as ActiveTab, label: "Vehicles", icon: Car } : null,
+    canManageOperations ? { id: "payments" as ActiveTab, label: "Payments", icon: DollarSign } : null,
+    canManageOperations ? { id: "invoices" as ActiveTab, label: "Invoices", icon: FileText } : null,
+    canManageOperations ? { id: "priceSettings" as ActiveTab, label: "Pricing", icon: Settings } : null,
+    { id: "heathrow" as ActiveTab, label: "Heathrow Monitor", icon: Shield },
+  ].filter(Boolean) as Array<{ id: ActiveTab; label: string; icon: typeof LayoutGrid }>;
+
+  const quickActions =
+    activeTab === "overview"
+      ? [
+          { label: "Open Dispatch", onClick: () => setActiveTab("bookings") },
+          { label: "Open People", onClick: () => setActiveTab("people") },
+          { label: "Open Invoices", onClick: () => setActiveTab("invoices") },
+        ]
+      : activeTab === "people"
+        ? [{ label: "Add Admin", onClick: () => router.push("/administrator/add-admin") }]
+        : activeTab === "passengers"
+          ? [{ label: "Open Dispatch", onClick: () => setActiveTab("bookings") }]
+          : activeTab === "bookings"
+            ? [{ label: "Open Heathrow", onClick: () => setActiveTab("heathrow") }]
+            : [];
+
+  const renderNav = (mobile = false) => (
+    <nav className={cn("space-y-1", mobile ? "mt-3" : "p-3")}>
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => {
+              setActiveTab(item.id);
+              if (mobile) {
+                setMobileSidebarOpen(false);
+              }
+            }}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all",
+              activeTab === item.id
+                ? "bg-blue-600 text-white shadow-[0_10px_20px_rgba(37,99,235,0.35)]"
+                : "text-slate-200 hover:bg-slate-700/80",
+              !mobile && !isSidebarOpen && "justify-center"
+            )}
+          >
+            <Icon className="h-5 w-5 shrink-0" />
+            {(mobile || isSidebarOpen) && <span>{item.label}</span>}
+          </button>
+        );
+      })}
+    </nav>
+  );
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen bg-gray-100 w-full">
-        {/* Sidebar */}
-        <Sidebar
-          className={cn(
-            "fixed top-0 left-0 h-full transition-all duration-300 border-r bg-gradient-to-t from-[#1C2526] to-[#323838] text-white z-30",
-            isSidebarOpen ? "w-64" : "w-16"
-          )}
-        >
-          <div className="flex items-center justify-between p-4 border-b border-gray-700">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e2e8f0,_#f8fafc_42%,_#eef2ff_100%)]">
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 hidden border-r border-slate-800 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 text-slate-100 md:flex md:flex-col",
+          isSidebarOpen ? "w-72" : "w-24"
+        )}
+      >
+        <div className="border-b border-slate-700/80 p-4">
+          <div className="flex items-center justify-between gap-3">
             {isSidebarOpen && (
-              <h2 className="text-lg font-semibold">{isHeathrowOnly ? "Heathrow Monitor" : "Admin Panel"}</h2>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">VIP Greeters</p>
+                <h1 className="mt-1 text-sm font-semibold text-white">Operations Console</h1>
+              </div>
             )}
-            <SidebarTrigger
-              onClick={() => {
-                if (!isMobile) {
-                  setIsSidebarOpen((prev) => !prev);
-                }
-              }}
-              className="p-2 rounded-md hover:bg-gray-700"
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen((prev) => !prev)}
+              className="rounded-lg p-2 text-slate-200 hover:bg-slate-700"
+              aria-label={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
-              {isSidebarOpen ? <ChevronLeft className="h-5 w-5 text-white" /> : <ChevronRight className="h-5 w-5 text-white" />}
-            </SidebarTrigger>
+              <ChevronLeft className={cn("h-5 w-5 transition-transform", !isSidebarOpen && "rotate-180")} />
+            </button>
           </div>
-          <SidebarContent>
-            <SidebarGroup className="mt-4">
-              {canManageOperations && (
-                <>
-                  <SidebarMenuItem
-                    onClick={() => setActiveTab("bookings")}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                      activeTab === "bookings" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                      !isSidebarOpen && "justify-center"
-                    )}
-                  >
-                    <Calendar className="h-5 w-5" />
-                    {isSidebarOpen && <span>Bookings</span>}
-                  </SidebarMenuItem>
-                  <SidebarMenuItem
-                    onClick={() => setActiveTab("vehicles")}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                      activeTab === "vehicles" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                      !isSidebarOpen && "justify-center"
-                    )}
-                  >
-                    <Car className="h-5 w-5" />
-                    {isSidebarOpen && <span>Vehicles</span>}
-                  </SidebarMenuItem>
-                  <SidebarMenuItem
-                    onClick={() => setActiveTab("payments")}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                      activeTab === "payments" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                      !isSidebarOpen && "justify-center"
-                    )}
-                  >
-                    <DollarSign className="h-5 w-5" />
-                    {isSidebarOpen && <span>Payments</span>}
-                  </SidebarMenuItem>
-                  <SidebarMenuItem
-                    onClick={() => setActiveTab("invoices")}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                      activeTab === "invoices" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                      !isSidebarOpen && "justify-center"
-                    )}
-                  >
-                    <FileText className="h-5 w-5" />
-                    {isSidebarOpen && <span>Invoices</span>}
-                  </SidebarMenuItem>
-                  <SidebarMenuItem
-                    onClick={() => setActiveTab("priceSettings")}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                      activeTab === "priceSettings" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                      !isSidebarOpen && "justify-center"
-                    )}
-                  >
-                    <Settings className="h-5 w-5" />
-                    {isSidebarOpen && <span>Price Settings</span>}
-                  </SidebarMenuItem>
-                </>
-              )}
-              <SidebarMenuItem
-                onClick={() => setActiveTab("heathrow")}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors",
-                  activeTab === "heathrow" ? "bg-[#007AFF] text-white" : "text-gray-300 hover:bg-gray-700",
-                  !isSidebarOpen && "justify-center"
-                )}
-              >
-                <Shield className="h-5 w-5" />
-                {isSidebarOpen && <span>Heathrow Monitor</span>}
-              </SidebarMenuItem>
-            </SidebarGroup>
-          </SidebarContent>
-        </Sidebar>
+        </div>
+        <div className="flex-1 overflow-y-auto">{renderNav(false)}</div>
+        {isSidebarOpen && (
+          <div className="border-t border-slate-700/80 p-4 text-xs text-slate-400">
+            <p className="font-medium text-slate-200">Signed in</p>
+            <p className="mt-1 break-all">{userEmail}</p>
+          </div>
+        )}
+      </aside>
 
-        {/* Main Content */}
-        <div
-          className={cn(
-            "flex-1 transition-all duration-300 w-full bg-gray-100",
-            isSidebarOpen ? "md:ml-64" : "md:ml-16"
-          )}
-        >
-          {/* Top Navigation Bar */}
-          <div className="bg-white border-b px-4 py-3 sm:px-6 flex items-center justify-between gap-3">
+      {mobileSidebarOpen && <div className="fixed inset-0 z-40 bg-slate-950/50 md:hidden" onClick={() => setMobileSidebarOpen(false)} />}
+
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-80 border-r border-slate-800 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800 p-3 text-slate-100 transition-transform md:hidden",
+          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between border-b border-slate-700/80 pb-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">VIP Greeters</p>
+            <h2 className="mt-1 text-sm font-semibold text-white">Operations Console</h2>
+          </div>
+          <button type="button" onClick={() => setMobileSidebarOpen(false)} className="rounded-lg p-2 hover:bg-slate-700" aria-label="Close sidebar">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        </div>
+        {renderNav(true)}
+      </aside>
+
+      <div className={cn("min-h-screen transition-all duration-300", isSidebarOpen ? "md:pl-72" : "md:pl-24")}>
+        <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between px-4 sm:px-6">
             <div className="flex items-center gap-3">
-              <SidebarTrigger className="md:hidden" />
-              <div className="md:hidden">
-                <p className="text-sm font-semibold text-gray-900">
-                  {isHeathrowOnly ? "Heathrow Monitor" : "Admin Panel"}
-                </p>
+              <button type="button" className="rounded-lg p-2 text-slate-700 hover:bg-slate-100 md:hidden" onClick={() => setMobileSidebarOpen(true)} aria-label="Open sidebar">
+                <Menu className="h-5 w-5" />
+              </button>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{activeTabLabel}</p>
+                <p className="text-xs text-slate-500">{activeTabDescription}</p>
               </div>
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger className="relative h-8 w-8 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>{userEmail.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{isHeathrowOnly ? "Heathrow Operations" : "Admin"}</p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {userEmail}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/administrator/profile')}>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </DropdownMenuItem>
-                {canManageOperations && (
-                  <>
-                    <DropdownMenuItem onClick={() => router.push('/administrator/add-admin')}>
-                      <Shield className="mr-2 h-4 w-4" />
-                      <span>Add Admin</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => router.push('/administrator/change-password')}>
-                      <Key className="mr-2 h-4 w-4" />
-                      <span>Change Password</span>
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Button type="button" variant="outline" size="sm" onClick={handleManualRefresh} className="hidden sm:inline-flex">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
+              <div className="hidden rounded-xl border border-slate-200 bg-slate-50 p-1 sm:flex">
+                <button
+                  type="button"
+                  onClick={() => setDensityMode("comfortable")}
+                  className={cn("rounded-lg px-3 py-1.5 text-xs font-medium transition-colors", densityMode === "comfortable" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
+                >
+                  Comfortable
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDensityMode("compact")}
+                  className={cn("rounded-lg px-3 py-1.5 text-xs font-medium transition-colors", densityMode === "compact" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
+                >
+                  Compact
+                </button>
+              </div>
 
-          <div className="p-4 sm:p-6 w-full">
-            {activeTab === "bookings" && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Total Bookings</h3>
-                    <p className="text-2xl font-bold text-gray-900">{totalBookings}</p>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="relative h-9 w-9 rounded-full">
+                  <Avatar className="h-9 w-9 ring-2 ring-slate-200">
+                    <AvatarFallback>{userEmail.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{isHeathrowOnly ? "Heathrow Operations" : "Admin"}</p>
+                      <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => router.push("/administrator/profile")}>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  {canManageOperations && (
+                    <>
+                      <DropdownMenuItem onClick={() => router.push("/administrator/add-admin")}>
+                        <Shield className="mr-2 h-4 w-4" />
+                        <span>Add Admin</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => router.push("/administrator/change-password")}>
+                        <Key className="mr-2 h-4 w-4" />
+                        <span>Change Password</span>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-[1600px] p-4 sm:p-6">
+          <div className={sectionGap}>
+            <section className={cn(cardClass, shellPadding, "bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 text-white")}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-blue-200/80">Control Center</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{activeTabLabel}</h2>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-300">{activeTabDescription}. Built for fast operational scanning, staffing visibility, and passenger coordination.</p>
+                </div>
+                {quickActions.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {quickActions.map((action) => (
+                      <Button key={action.label} type="button" variant="outline" className="border-white/20 bg-white/10 text-white hover:bg-white/20" onClick={action.onClick}>
+                        {action.label}
+                      </Button>
+                    ))}
                   </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Active Jobs</h3>
-                    <p className="text-2xl font-bold text-gray-900">{activeJobs}</p>
+                )}
+              </div>
+            </section>
+
+            {activeTab === "overview" && !isHeathrowOnly && (
+              <div className={sectionGap}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Total Bookings</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{totalBookings}</p>
                   </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Meet & Greet Bookings</h3>
-                    <p className="text-2xl font-bold text-gray-900">{meetAndGreetBookings}</p>
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Live Jobs</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{activeJobs}</p>
                   </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Airport Transfer Bookings</h3>
-                    <p className="text-2xl font-bold text-gray-900">{airportTransferBookings}</p>
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Greeters Available</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{greeterAvailability.filter((greeter) => greeter.availability === "available").length}</p>
                   </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Hire By Hour Bookings</h3>
-                    <p className="text-2xl font-bold text-gray-900">{hourlyHireBookings}</p>
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Office Staff</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{officeStaff.length}</p>
                   </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md lg:col-span-2">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500">Email Delivery</h3>
-                        <p className={cn(
-                          "mt-2 text-sm font-medium",
-                          emailStatus?.configured ? "text-emerald-700" : "text-amber-700"
-                        )}>
-                          {isEmailStatusLoading
-                            ? "Checking email setup..."
-                            : emailStatus?.configured
-                              ? "Resend is configured and ready."
-                              : "Email delivery needs attention."}
-                        </p>
-                        {emailStatus?.officeDestination && (
-                          <p className="text-xs text-gray-500 mt-1">Notification recipients: {emailStatus.officeDestination}</p>
-                        )}
-                        {emailStatus?.fromEmail && (
-                          <p className="text-xs text-gray-500">Sender: {emailStatus.fromEmail}</p>
-                        )}
-                        {!isEmailStatusLoading && emailStatus && !emailStatus.configured && emailStatus.missing.length > 0 && (
-                          <p className="text-xs text-amber-700 mt-1">Missing: {emailStatus.missing.join(", ")}</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_0.9fr]">
+                  <section className={panelClass}>
+                    <div className="border-b border-slate-200/80 p-4 sm:p-5">
+                      <h3 className="text-lg font-semibold text-slate-900">Office Alerts</h3>
+                      <p className="text-sm text-slate-500">Urgent operational and finance signals that need action.</p>
+                    </div>
+                    <div className={cn(shellPadding, "space-y-3")}>
+                      {officeAlerts.length === 0 ? (
+                        <p className="text-sm text-slate-500">No immediate office alerts.</p>
+                      ) : (
+                        officeAlerts.map((alert, index) => (
+                          <div
+                            key={`${alert.title}-${index}`}
+                            className={cn(
+                              "rounded-xl border px-4 py-3",
+                              alert.level === "warning" && "border-amber-200 bg-amber-50 text-amber-900",
+                              alert.level === "success" && "border-emerald-200 bg-emerald-50 text-emerald-900",
+                              alert.level === "info" && "border-blue-200 bg-blue-50 text-blue-900"
+                            )}
+                          >
+                            <p className="font-semibold">{alert.title}</p>
+                            <p className="text-sm">{alert.message}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </section>
+
+                  <section className={panelClass}>
+                    <div className="border-b border-slate-200/80 p-4 sm:p-5">
+                      <h3 className="text-lg font-semibold text-slate-900">Demand Mix</h3>
+                      <p className="text-sm text-slate-500">How bookings are distributed across core service types.</p>
+                    </div>
+                    <div className={cn(shellPadding, "grid gap-3")}>
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-sm text-slate-500">Meet & Greet</p>
+                        <p className="mt-1 text-2xl font-semibold text-slate-900">{meetAndGreetBookings}</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-sm text-slate-500">Airport Transfers</p>
+                        <p className="mt-1 text-2xl font-semibold text-slate-900">{airportTransferBookings}</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-sm text-slate-500">Hourly Hire</p>
+                        <p className="mt-1 text-2xl font-semibold text-slate-900">{hourlyHireBookings}</p>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "people" && !isHeathrowOnly && (
+              <div className={sectionGap}>
+                <section className={cn(cardClass, shellPadding)}>
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input value={peopleQuery} onChange={(event) => setPeopleQuery(event.target.value)} className="pl-9" placeholder="Search greeters or office staff by name, email, phone, or role" />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(["all", "admin", "heathrow"] as const).map((roleOption) => (
+                        <Button key={roleOption} type="button" size="sm" variant={staffRoleFilter === roleOption ? "default" : "outline"} onClick={() => setStaffRoleFilter(roleOption)} className="capitalize">
+                          {roleOption}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  <section className={panelClass}>
+                    <div className="border-b border-slate-200/80 p-4 sm:p-5">
+                      <h3 className="text-lg font-semibold text-slate-900">Greeters & Availability</h3>
+                    </div>
+                    <div className={cn(shellPadding, "space-y-3")}>
+                      {filteredGreeterAvailability.length === 0 ? (
+                        <p className="text-sm text-slate-500">No greeters found.</p>
+                      ) : (
+                        filteredGreeterAvailability.map((greeter) => (
+                          <div key={greeter.id} className="rounded-xl border border-slate-200 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-semibold text-slate-900">{greeter.full_name || "Unnamed greeter"}</p>
+                                <p className="text-sm text-slate-500">{greeter.email || "No email"}</p>
+                                <p className="mt-1 text-xs text-slate-500">Phone: {greeter.phone || "N/A"}</p>
+                              </div>
+                              <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-medium", greeter.availability === "available" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800")}>
+                                {greeter.availability === "available" ? "Available" : "Unavailable"}
+                              </span>
+                            </div>
+                            <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                              <p>Active jobs: {greeter.assignedJobs.length}</p>
+                              <p>Next assignment: {greeter.nextJob ? new Date(greeter.nextJob.date_time).toLocaleString() : "None"}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </section>
+
+                  <section className={panelClass}>
+                    <div className="border-b border-slate-200/80 p-4 sm:p-5">
+                      <h3 className="text-lg font-semibold text-slate-900">Office Staff & Roles</h3>
+                    </div>
+                    <div className={cn(shellPadding, "space-y-3")}>
+                      {staffError ? (
+                        <p className="text-sm text-red-600">{staffError}</p>
+                      ) : filteredOfficeStaff.length === 0 ? (
+                        <p className="text-sm text-slate-500">No office staff records found.</p>
+                      ) : (
+                        filteredOfficeStaff.map((staff) => {
+                          const fullName = [staff.first_name, staff.last_name].filter(Boolean).join(" ").trim() || "Staff member";
+                          return (
+                            <div key={staff.id} className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 p-4">
+                              <div>
+                                <p className="font-semibold text-slate-900">{fullName}</p>
+                                <p className="text-sm text-slate-500">{staff.email || "No email"}</p>
+                              </div>
+                              <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium capitalize text-blue-700">{staff.role || "user"}</span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "passengers" && !isHeathrowOnly && (
+              <div className={sectionGap}>
+                <section className={cn(cardClass, shellPadding)}>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input value={passengerQuery} onChange={(event) => setPassengerQuery(event.target.value)} className="pl-9" placeholder="Search passengers by name, contact details, booking ref, or route" />
+                  </div>
+                </section>
+
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                  {[{ title: "Future", items: filteredFutureBookings }, { title: "Present", items: filteredPresentBookings }, { title: "Past", items: filteredPastBookings }].map((group) => (
+                    <section key={group.title} className={panelClass}>
+                      <div className="flex items-center justify-between border-b border-slate-200/80 p-4 sm:p-5">
+                        <h3 className="text-lg font-semibold text-slate-900">{group.title}</h3>
+                        <span className="text-sm text-slate-500">{group.items.length}</span>
+                      </div>
+                      <div className={cn(shellPadding, "max-h-[520px] space-y-3 overflow-y-auto")}>
+                        {group.items.length === 0 ? (
+                          <p className="text-sm text-slate-500">No bookings.</p>
+                        ) : (
+                          group.items.map((booking) => (
+                            <div key={booking.id} className="rounded-xl border border-slate-200 p-4">
+                              <p className="font-semibold text-slate-900">{booking.full_name || "Guest passenger"}</p>
+                              <p className="text-sm text-slate-600">{booking.booking_ref || booking.id.slice(0, 8)}</p>
+                              <p className="mt-1 text-xs text-slate-500">{new Date(booking.date_time).toLocaleString()}</p>
+                              <p className="text-xs text-slate-500">{booking.pickup_location} → {booking.dropoff_location || "N/A"}</p>
+                            </div>
+                          ))
                         )}
                       </div>
-                      <div className="flex w-full flex-col gap-2 md:w-auto">
-                        <Input
-                          type="email"
-                          value={officeInboxInput}
-                          onChange={(event) => setOfficeInboxInput(event.target.value)}
-                          placeholder="Add one or more emails, separated by commas"
-                          className="min-w-[240px]"
-                          disabled={isEmailStatusLoading || isSavingOfficeInbox}
-                        />
-                        <p className="text-xs text-gray-500">Use commas to add or remove multiple notification addresses.</p>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleSaveOfficeInbox}
-                            disabled={isEmailStatusLoading || isSavingOfficeInbox || !officeInboxInput.trim()}
-                          >
-                            {isSavingOfficeInbox ? "Saving..." : "Save recipients"}
-                          </Button>
-                          <Button type="button" variant="outline" onClick={handleSendTestEmail} disabled={isSendingEmailTest || isEmailStatusLoading}>
-                            {isSendingEmailTest ? "Sending..." : "Send test email"}
-                          </Button>
-                        </div>
+                    </section>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "bookings" && (
+              <div className={sectionGap}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Total Bookings</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{totalBookings}</p>
+                  </div>
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Live Jobs</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{activeJobs}</p>
+                  </div>
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Completed Jobs</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{completedJobs}</p>
+                  </div>
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Revenue</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">£{totalRevenue.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <section className={panelClass}>
+                  <div className="flex flex-col gap-3 border-b border-slate-200/80 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Dispatch Board</h3>
+                      <p className="text-sm text-slate-500">Confirm bookings, assign greeters, and track each job to completion.</p>
+                      <p className={cn("mt-2 text-sm font-medium", emailStatus?.configured ? "text-emerald-700" : "text-amber-700")}>
+                        {isEmailStatusLoading
+                          ? "Checking email setup..."
+                          : emailStatus?.configured
+                            ? "Resend is configured and ready."
+                            : "Email delivery needs attention."}
+                      </p>
+                      {emailStatus?.officeDestination && <p className="text-xs text-slate-500">Recipients: {emailStatus.officeDestination}</p>}
+                      {emailStatus?.fromEmail && <p className="text-xs text-slate-500">Sender: {emailStatus.fromEmail}</p>}
+                      {!isEmailStatusLoading && emailStatus && !emailStatus.configured && emailStatus.missing.length > 0 && (
+                        <p className="text-xs text-amber-700">Missing: {emailStatus.missing.join(", ")}</p>
+                      )}
+                    </div>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto">
+                      <Input
+                        type="email"
+                        value={officeInboxInput}
+                        onChange={(event) => setOfficeInboxInput(event.target.value)}
+                        placeholder="Notification recipients, separated by commas"
+                        className="min-w-[260px]"
+                        disabled={isEmailStatusLoading || isSavingOfficeInbox}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" onClick={handleSaveOfficeInbox} disabled={isEmailStatusLoading || isSavingOfficeInbox || !officeInboxInput.trim()}>
+                          {isSavingOfficeInbox ? "Saving..." : "Save recipients"}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={handleSendTestEmail} disabled={isSendingEmailTest || isEmailStatusLoading}>
+                          {isSendingEmailTest ? "Sending..." : "Send test email"}
+                        </Button>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Total Revenue (£)</h3>
-                    <p className="text-2xl font-bold text-gray-900">{totalRevenue.toFixed(2)}</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Active Drivers</h3>
-                    <p className="text-2xl font-bold text-gray-900">{activeDrivers}</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <h3 className="text-sm font-medium text-gray-500">Completed Jobs</h3>
-                    <p className="text-2xl font-bold text-gray-900">{completedJobs}</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="p-4 border-b">
-                    <h3 className="text-lg font-semibold text-gray-900">Office Alerts</h3>
-                    <p className="text-sm text-gray-500">Live signals that need attention from dispatch or finance.</p>
-                  </div>
-                  <div className="p-4 space-y-3">
-                    {officeAlerts.length === 0 ? (
-                      <p className="text-sm text-gray-500">No immediate office alerts.</p>
-                    ) : (
-                      officeAlerts.map((alert, index) => (
-                        <div
-                          key={`${alert.title}-${index}`}
-                          className={cn(
-                            "rounded-md border px-4 py-3",
-                            alert.level === "warning" && "border-amber-200 bg-amber-50 text-amber-900",
-                            alert.level === "success" && "border-emerald-200 bg-emerald-50 text-emerald-900",
-                            alert.level === "info" && "border-blue-200 bg-blue-50 text-blue-900"
-                          )}
-                        >
-                          <p className="font-semibold">{alert.title}</p>
-                          <p className="text-sm">{alert.message}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="p-4 border-b">
-                    <h3 className="text-lg font-semibold text-gray-900">Dispatch Board</h3>
-                    <p className="text-sm text-gray-500">Confirm bookings, assign greeters, and track each job through to completion.</p>
-                  </div>
 
                   {isLoadingBookings ? (
-                    <div className="p-4 text-sm text-gray-500">Loading bookings...</div>
+                    <div className="p-4 text-sm text-slate-500">Loading bookings...</div>
                   ) : bookingError ? (
                     <div className="p-4 text-sm text-red-500">{bookingError}</div>
                   ) : bookings.length === 0 ? (
-                    <div className="p-4 text-sm text-gray-500">No bookings available yet.</div>
+                    <div className="p-4 text-sm text-slate-500">No bookings available yet.</div>
                   ) : (
                     <>
                       <div className="space-y-4 p-4 md:hidden">
-                        {bookings
-                          .filter((booking) => booking.status !== "deleted")
-                          .map((booking) => (
-                            <MobileBookingCard
-                              key={booking.id}
-                              booking={booking}
-                              drivers={drivers}
-                              handleUpdateBookingStatus={handleUpdateBookingStatus}
-                              handleAssignDriver={handleAssignDriver}
-                              handleMarkBookingCompleted={handleMarkBookingCompleted}
-                              handleDeleteBooking={handleDeleteBooking}
-                            />
-                          ))}
+                        {bookings.filter((booking) => booking.status !== "deleted").map((booking) => (
+                          <MobileBookingCard
+                            key={booking.id}
+                            booking={booking}
+                            drivers={drivers}
+                            handleUpdateBookingStatus={handleUpdateBookingStatus}
+                            handleAssignDriver={handleAssignDriver}
+                            handleMarkBookingCompleted={handleMarkBookingCompleted}
+                            handleDeleteBooking={handleDeleteBooking}
+                          />
+                        ))}
                       </div>
-
                       <div className="hidden overflow-x-auto md:block">
                         <table className="min-w-full text-sm">
-                          <thead className="bg-gray-50 text-left text-gray-600">
+                          <thead className="bg-slate-50 text-left text-slate-600">
                             <tr>
                               <th className="p-4">Booking Ref</th>
                               <th className="p-4">Created</th>
@@ -808,25 +1100,23 @@ export default function AdminDashboard() {
                             </tr>
                           </thead>
                           <tbody>
-                            {bookings
-                              .filter((booking) => booking.status !== "deleted")
-                              .map((booking) => (
-                                <BookingRow
-                                  key={booking.id}
-                                  booking={booking}
-                                  drivers={drivers}
-                                  handleUpdateBookingStatus={handleUpdateBookingStatus}
-                                  handleAssignDriver={handleAssignDriver}
-                                  handleMarkBookingCompleted={handleMarkBookingCompleted}
-                                  handleDeleteBooking={handleDeleteBooking}
-                                />
-                              ))}
+                            {bookings.filter((booking) => booking.status !== "deleted").map((booking) => (
+                              <BookingRow
+                                key={booking.id}
+                                booking={booking}
+                                drivers={drivers}
+                                handleUpdateBookingStatus={handleUpdateBookingStatus}
+                                handleAssignDriver={handleAssignDriver}
+                                handleMarkBookingCompleted={handleMarkBookingCompleted}
+                                handleDeleteBooking={handleDeleteBooking}
+                              />
+                            ))}
                           </tbody>
                         </table>
                       </div>
                     </>
                   )}
-                </div>
+                </section>
               </div>
             )}
 
@@ -836,10 +1126,10 @@ export default function AdminDashboard() {
                 isLoadingVehicles={isLoadingVehicles}
                 vehicleError={vehicleError}
                 fetchVehicles={async () => {
-                  const { data, error, isLoading } = await fetchVehicles();
+                  const { data, error, isLoading: loading } = await fetchVehicles();
                   setVehicles(data || []);
                   setVehicleError(error);
-                  setIsLoadingVehicles(isLoading);
+                  setIsLoadingVehicles(loading);
                 }}
               />
             )}
@@ -851,62 +1141,48 @@ export default function AdminDashboard() {
                 paymentError={paymentError}
                 drivers={drivers}
                 fetchDriverPayments={async () => {
-                  const { data, error, isLoading } = await fetchDriverPayments();
+                  const { data, error, isLoading: loading } = await fetchDriverPayments();
                   setDriverPayments(data || []);
                   setPaymentError(error);
-                  setIsLoadingPayments(isLoading);
+                  setIsLoadingPayments(loading);
                 }}
               />
             )}
 
-            {activeTab === "invoices" && (
-              <InvoicesTab
-                bookings={bookings}
-                isLoadingBookings={isLoadingBookings}
-                bookingError={bookingError}
-              />
-            )}
+            {activeTab === "invoices" && <InvoicesTab bookings={bookings} isLoadingBookings={isLoadingBookings} bookingError={bookingError} />}
 
             {activeTab === "priceSettings" && (
-              <PriceSettingsTab
-                fetchLocations={fetchLocations}
-                fetchServicePricing={fetchServicePricing}
-                fetchExtraCharges={fetchExtraCharges}
-              />
+              <PriceSettingsTab fetchLocations={fetchLocations} fetchServicePricing={fetchServicePricing} fetchExtraCharges={fetchExtraCharges} />
             )}
 
             {activeTab === "heathrow" && (
-              <div className="space-y-6">
-                <div className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-lg font-semibold text-gray-900">Heathrow Operations Monitoring Board</h3>
-                  <p className="text-sm text-gray-500">Designed for Heathrow airport operations members to monitor live jobs and service readiness.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <p className="text-sm text-gray-500">Heathrow Jobs</p>
-                    <p className="text-2xl font-bold text-gray-900">{heathrowBookings.length}</p>
+              <div className={sectionGap}>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Heathrow Jobs</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{heathrowBookings.length}</p>
                   </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <p className="text-sm text-gray-500">In Progress</p>
-                    <p className="text-2xl font-bold text-gray-900">{heathrowBookings.filter((job) => ["assigned", "accepted", "picked_up"].includes(String(job.driver_status || job.status || ""))).length}</p>
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">In Progress</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{heathrowBookings.filter((job) => ["assigned", "accepted", "picked_up"].includes(String(job.driver_status || job.status || ""))).length}</p>
                   </div>
-                  <div className="bg-white p-4 rounded-lg shadow-md">
-                    <p className="text-sm text-gray-500">Completed</p>
-                    <p className="text-2xl font-bold text-gray-900">{heathrowBookings.filter((job) => job.status === "completed").length}</p>
+                  <div className={metricCardClass}>
+                    <p className="text-sm text-slate-500">Completed</p>
+                    <p className="mt-2 text-3xl font-semibold text-slate-900">{heathrowBookings.filter((job) => job.status === "completed").length}</p>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <div className="p-4 border-b">
-                    <h4 className="text-md font-semibold text-gray-900">Live Heathrow Jobs</h4>
+                <section className={panelClass}>
+                  <div className="border-b border-slate-200/80 p-4 sm:p-5">
+                    <h3 className="text-lg font-semibold text-slate-900">Live Heathrow Jobs</h3>
+                    <p className="text-sm text-slate-500">Monitor airport operations, flight status, and service readiness.</p>
                   </div>
                   {heathrowBookings.length === 0 ? (
-                    <div className="p-4 text-sm text-gray-500">No Heathrow-related jobs yet.</div>
+                    <div className="p-4 text-sm text-slate-500">No Heathrow-related jobs yet.</div>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50 text-left text-gray-600">
+                        <thead className="bg-slate-50 text-left text-slate-600">
                           <tr>
                             <th className="p-4">Booking Ref</th>
                             <th className="p-4">Passenger</th>
@@ -918,34 +1194,35 @@ export default function AdminDashboard() {
                           </tr>
                         </thead>
                         <tbody>
-                          {heathrowBookings.map((job) => (
-                            <tr key={job.id} className="border-b">
-                              <td className="p-4">{job.booking_ref || "N/A"}</td>
-                              <td className="p-4">{job.full_name || "Guest passenger"}</td>
-                              <td className="p-4">{job.pickup_location} → {job.dropoff_location || "N/A"}</td>
-                              <td className="p-4">{new Date(job.date_time).toLocaleString()}</td>
-                              <td className="p-4">{job.status}</td>
-                              <td className="p-4">
-                                {(() => {
-                                  const flight = getPrimaryFlightNumber(job);
-                                  if (!flight) return "N/A";
-                                  const statusInfo = flightStatuses[flight];
-                                  return `${flight} · ${statusInfo?.status || "Loading"}${statusInfo?.terminal ? ` (${statusInfo.terminal})` : ""} · ${statusInfo?.source === "remote" ? "Live" : "Simulated"}`;
-                                })()}
-                              </td>
-                              <td className="p-4">{getMonitoringPriority(job.status)}</td>
-                            </tr>
-                          ))}
+                          {heathrowBookings.map((job) => {
+                            const flight = getPrimaryFlightNumber(job);
+                            const statusInfo = flight ? flightStatuses[flight] : null;
+                            return (
+                              <tr key={job.id} className="border-b border-slate-100">
+                                <td className="p-4">{job.booking_ref || "N/A"}</td>
+                                <td className="p-4">{job.full_name || "Guest passenger"}</td>
+                                <td className="p-4">{job.pickup_location} → {job.dropoff_location || "N/A"}</td>
+                                <td className="p-4">{new Date(job.date_time).toLocaleString()}</td>
+                                <td className="p-4">{job.status}</td>
+                                <td className="p-4">
+                                  {flight
+                                    ? `${flight} · ${statusInfo?.status || "Loading"}${statusInfo?.terminal ? ` (${statusInfo.terminal})` : ""} · ${statusInfo?.source === "remote" ? "Live" : "Simulated"}`
+                                    : "N/A"}
+                                </td>
+                                <td className="p-4">{getMonitoringPriority(job.status)}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
                   )}
-                </div>
+                </section>
               </div>
             )}
           </div>
-        </div>
+        </main>
       </div>
-    </SidebarProvider>
+    </div>
   );
 }
