@@ -13,13 +13,16 @@ import { auth } from "@/lib/supabase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { loadStoredBookingDraft } from "@/lib/bookingFlow";
+import { isGreeterUser } from "@/lib/adminUtils";
 
 const logoURL = "/favicon.ico";
 
 export default function SigninClient({
   searchParams,
+  portal = "user",
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
+  portal?: "user" | "greeter";
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,6 +39,27 @@ export default function SigninClient({
   const errorMessage = (searchParams?.error as string) || null;
   const successMessage = (searchParams?.message as string) || null;
   const fromBooking = searchParams?.from === "booking";
+  const isGreeterPortal = portal === "greeter";
+
+  const routeAfterSignIn = async (userId: string) => {
+    if (fromBooking) {
+      router.push("/booking");
+      return;
+    }
+
+    if (!isGreeterPortal) {
+      router.push("/user/dashboard");
+      return;
+    }
+
+    const hasGreeterAccess = await isGreeterUser(userId);
+    if (!hasGreeterAccess) {
+      await auth.signOut();
+      throw new Error("This account does not have greeter access.");
+    }
+
+    router.push("/greeter/dashboard");
+  };
 
   useEffect(() => {
     const draft = loadStoredBookingDraft();
@@ -51,15 +75,8 @@ export default function SigninClient({
     setError(null);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      
-      // Check if user came from booking page
-      const fromBooking = searchParams?.from === 'booking';
-      if (fromBooking) {
-        router.push('/booking');
-      } else {
-        router.push('/user/dashboard');
-      }
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await routeAfterSignIn(userCredential.user.uid);
     } catch (error: any) {
       // Handle specific auth errors
       switch (error.code) {
@@ -102,15 +119,8 @@ export default function SigninClient({
 
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      
-      // Check if user came from booking page
-      const fromBooking = searchParams?.from === 'booking';
-      if (fromBooking) {
-        router.push('/booking');
-      } else {
-        router.push('/user/dashboard');
-      }
+      const redirectPath = fromBooking ? "/booking" : isGreeterPortal ? "/greeter/dashboard" : "/user/dashboard";
+      await signInWithPopup(auth, provider, redirectPath);
     } catch (error: unknown) {
       if (error instanceof Error) {
         setError(error.message);
@@ -203,7 +213,7 @@ export default function SigninClient({
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-sm">
-        <h2 className="text-2xl font-bold mb-4 text-center">Sign In</h2>
+        <h2 className="text-2xl font-bold mb-4 text-center">{isGreeterPortal ? "Greeter Sign In" : "Sign In"}</h2>
 
         <div className="mb-6">
           <Button
@@ -287,12 +297,18 @@ export default function SigninClient({
             </p>
           )}
 
-          <p className="text-center">
-            Don&apos;t have an account?{" "}
-            <Link href={fromBooking ? "/user/signup?from=booking" : "/user/signup"} className="text-blue-500 hover:underline">
-              Sign Up
-            </Link>
-          </p>
+          {!isGreeterPortal ? (
+            <p className="text-center">
+              Don&apos;t have an account?{" "}
+              <Link href={fromBooking ? "/user/signup?from=booking" : "/user/signup"} className="text-blue-500 hover:underline">
+                Sign Up
+              </Link>
+            </p>
+          ) : (
+            <p className="text-center text-sm text-slate-500">
+              Greeter access is issued by invitation from the office team.
+            </p>
+          )}
         </form>
       </div>
 

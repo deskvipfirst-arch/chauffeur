@@ -1,4 +1,4 @@
-import { APP_NAME, APP_SUBTITLE, CONTACT_EMAIL, OWNER_DEFAULT_NOTIFICATION_EMAIL, WEBSITE_URL } from "@/lib/globalConfig";
+import { APP_NAME, CONTACT_EMAIL, CONTACT_PHONE, OWNER_DEFAULT_NOTIFICATION_EMAIL, WEBSITE_URL } from "@/lib/globalConfig";
 
 type DeliveryCheckInput = {
   apiKey?: string | null;
@@ -60,7 +60,6 @@ type GreeterAssignmentEmailInput = {
 };
 
 const BRAND_NAME = APP_NAME;
-const BRAND_SUBTITLE = APP_SUBTITLE;
 const BRAND_ACCENT = "#DAA520";
 const BRAND_DARK = "#1D3557";
 const DEFAULT_OFFICE_INBOX = OWNER_DEFAULT_NOTIFICATION_EMAIL;
@@ -74,36 +73,124 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
+function buildInfoRow(label: string, value: string) {
+  return `
+    <tr>
+      <td style="padding:8px 0;vertical-align:top;width:38%;font-size:13px;color:#6b7280;font-weight:600;white-space:nowrap;">${label}</td>
+      <td style="padding:8px 0 8px 12px;vertical-align:top;font-size:13px;color:#111827;">${value}</td>
+    </tr>
+  `.trim();
+}
+
+function buildCtaButton(text: string, url: string) {
+  return `
+    <div style="text-align:center;margin:28px 0 4px;">
+      <a href="${url}" target="_blank"
+        style="display:inline-block;padding:13px 38px;background:${BRAND_ACCENT};color:${BRAND_DARK};font-family:Arial,sans-serif;font-size:14px;font-weight:700;text-decoration:none;border-radius:5px;letter-spacing:0.4px;line-height:1;">
+        ${text}
+      </a>
+    </div>
+  `.trim();
+}
+
 function buildEmailShell(input: {
   title: string;
   intro: string;
   contentHtml: string;
+  ctaText?: string;
+  ctaUrl?: string;
   footerNote?: string;
   supportEmail?: string;
+  preheader?: string;
 }) {
   const supportEmail = escapeHtml(input.supportEmail || process.env.CONTACT_EMAIL || process.env.RESEND_FROM_EMAIL || CONTACT_EMAIL);
+  const preheaderHtml = input.preheader
+    ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#ffffff;opacity:0;">${escapeHtml(input.preheader)}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>`
+    : "";
+  const ctaHtml = input.ctaText && input.ctaUrl ? buildCtaButton(input.ctaText, input.ctaUrl) : "";
 
-  return `
-    <div style="margin:0;padding:24px;background:#f3f4f6;font-family:Arial,sans-serif;color:#111827;">
-      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;">
-        <div style="background:${BRAND_DARK};padding:20px 24px;">
-          <div style="font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${BRAND_ACCENT};">${BRAND_NAME}</div>
-          <div style="margin-top:6px;font-size:20px;font-weight:700;color:#ffffff;">${BRAND_SUBTITLE}</div>
-        </div>
-        <div style="padding:24px;line-height:1.6;">
-          <h2 style="margin:0 0 12px;font-size:24px;color:${BRAND_DARK};">${escapeHtml(input.title)}</h2>
-          <p style="margin:0 0 16px;color:#374151;">${escapeHtml(input.intro)}</p>
-          <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:16px;">
-            ${input.contentHtml}
-          </div>
-        </div>
-        <div style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e5e7eb;font-size:13px;color:#475569;">
-          <p style="margin:0 0 6px;">Need help? Reply to this email or contact ${supportEmail}.</p>
-          <p style="margin:0;">${escapeHtml(input.footerNote || "Thank you for choosing VIP Greeters.")}</p>
-        </div>
-      </div>
-    </div>
-  `.trim();
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>${escapeHtml(input.title)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef0f3;font-family:Arial,Helvetica,sans-serif;">
+${preheaderHtml}
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#eef0f3;padding:32px 16px;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;width:100%;">
+
+        <!-- HEADER -->
+        <tr>
+          <td style="background:${BRAND_DARK};border-radius:10px 10px 0 0;padding:36px 44px 28px;text-align:center;">
+            <div style="display:inline-block;width:44px;height:3px;background:${BRAND_ACCENT};border-radius:2px;margin-bottom:18px;"></div>
+            <div style="font-size:22px;font-weight:700;letter-spacing:3px;color:#ffffff;text-transform:uppercase;font-family:Georgia,serif;">
+              ${BRAND_NAME}
+            </div>
+            <div style="margin-top:6px;font-size:11px;letter-spacing:2px;color:#94a3b8;text-transform:uppercase;">
+              Premium Meet &amp; Greet Services
+            </div>
+          </td>
+        </tr>
+
+        <!-- GOLD ACCENT BAR -->
+        <tr>
+          <td style="height:4px;background:linear-gradient(90deg,#9a6a00,${BRAND_ACCENT},#9a6a00);"></td>
+        </tr>
+
+        <!-- BODY -->
+        <tr>
+          <td style="background:#ffffff;padding:40px 44px 32px;">
+            <h1 style="margin:0 0 6px;font-size:21px;font-weight:700;color:${BRAND_DARK};font-family:Georgia,serif;line-height:1.3;">
+              ${escapeHtml(input.title)}
+            </h1>
+            <div style="width:36px;height:2px;background:${BRAND_ACCENT};margin:0 0 20px;border-radius:2px;"></div>
+            <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.75;">
+              ${escapeHtml(input.intro)}
+            </p>
+
+            <!-- CONTENT CARD -->
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-left:4px solid ${BRAND_ACCENT};border-radius:6px;padding:20px 24px;">
+              ${input.contentHtml}
+            </div>
+
+            ${ctaHtml}
+          </td>
+        </tr>
+
+        <!-- DIVIDER -->
+        <tr>
+          <td style="background:#ffffff;padding:0 44px;">
+            <div style="height:1px;background:#e5e7eb;"></div>
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td style="background:${BRAND_DARK};border-radius:0 0 10px 10px;padding:28px 44px;text-align:center;">
+            <div style="font-size:13px;font-weight:700;letter-spacing:2px;color:${BRAND_ACCENT};text-transform:uppercase;margin-bottom:10px;">
+              ${BRAND_NAME}
+            </div>
+            <div style="font-size:12px;color:#94a3b8;line-height:1.9;">
+              <div>8 Spout Lane North, Heathrow, London TW19 6BW</div>
+              <div>${escapeHtml(CONTACT_PHONE)}&nbsp;&nbsp;|&nbsp;&nbsp;${supportEmail}</div>
+            </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.1);font-size:11px;color:#64748b;line-height:1.6;">
+              <div>${escapeHtml(input.footerNote || "Thank you for choosing VIP Greeters.")}</div>
+              <div style="margin-top:4px;">&copy; ${new Date().getFullYear()} ${BRAND_NAME}. All rights reserved.</div>
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`.trim();
 }
 
 export function maskEmailAddress(value?: string | null) {
@@ -239,22 +326,25 @@ export function buildContactNotificationEmail(input: ContactNotificationInput) {
   const fullName = `${input.firstName} ${input.lastName}`.trim();
   const subject = `New contact enquiry: ${input.subject?.trim() || "General enquiry"}`;
   const safeMessage = escapeHtml(input.message).replace(/\n/g, "<br />");
-  const safeName = escapeHtml(fullName || "Unknown sender");
-  const safeEmail = escapeHtml(input.email);
-  const safePhone = escapeHtml(input.phone?.trim() || "Not provided");
 
   return {
     subject,
     text: `New contact enquiry from ${fullName || "Unknown sender"}\nEmail: ${input.email}\nPhone: ${input.phone || "Not provided"}\n\n${input.message}`,
     html: buildEmailShell({
-      title: "New contact enquiry",
-      intro: "A new message has been sent from the website contact form.",
+      preheader: `New message from ${fullName || "website visitor"}: ${input.subject?.trim() || "General enquiry"}`,
+      title: "New Contact Enquiry",
+      intro: "A visitor has submitted a message via the website contact form.",
       contentHtml: `
-        <p style="margin:0 0 8px;"><strong>Name:</strong> ${safeName}</p>
-        <p style="margin:0 0 8px;"><strong>Email:</strong> ${safeEmail}</p>
-        <p style="margin:0 0 8px;"><strong>Phone:</strong> ${safePhone}</p>
-        <p style="margin:0 0 12px;"><strong>Subject:</strong> ${escapeHtml(input.subject?.trim() || "General enquiry")}</p>
-        <div style="padding-top:12px;border-top:1px solid #e5e7eb;">${safeMessage}</div>
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+          ${buildInfoRow("Name", escapeHtml(fullName || "Unknown sender"))}
+          ${buildInfoRow("Email", escapeHtml(input.email))}
+          ${buildInfoRow("Phone", escapeHtml(input.phone?.trim() || "Not provided"))}
+          ${buildInfoRow("Subject", escapeHtml(input.subject?.trim() || "General enquiry"))}
+          <tr><td colspan="2" style="padding-top:14px;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
+          <tr>
+            <td colspan="2" style="padding:14px 0 0;font-size:13px;color:#374151;line-height:1.75;">${safeMessage}</td>
+          </tr>
+        </table>
       `,
       footerNote: "Website enquiry received via VIP Greeters.",
     }),
@@ -271,23 +361,28 @@ export function buildBookingConfirmationEmail(input: BookingConfirmationInput) {
       });
 
   return {
-    subject: `Payment confirmed: ${input.bookingRef}`,
+    subject: `Booking confirmed — ${input.bookingRef} | VIP Greeters`,
     text: `Hello ${input.fullName}, your payment for booking ${input.bookingRef} has been confirmed. Service: ${input.serviceType}. Pickup: ${input.pickupLocation}. ${input.dropoffLocation ? `Drop-off: ${input.dropoffLocation}. ` : ""}Date: ${formattedDate}. Amount paid: £${input.amount.toFixed(2)}. Our booking team will now review your booking and assign your greeter at least 24 hours before your booked time.`,
     html: buildEmailShell({
-      title: "Your payment is confirmed",
-      intro: `Hello ${input.fullName}, thank you for booking with us. Your payment has been confirmed and your booking is now queued for office review.`,
+      preheader: `Your booking ${input.bookingRef} is confirmed — we'll assign your greeter shortly.`,
+      title: "Your Booking is Confirmed",
+      intro: `Hello ${escapeHtml(input.fullName)}, thank you for choosing VIP Greeters. Your payment has been received and your booking is now queued for office review. We will assign a dedicated greeter at least 24 hours before your service.`,
       contentHtml: `
-        <p style="margin:0 0 8px;"><strong>Booking reference:</strong> ${escapeHtml(input.bookingRef)}</p>
-        <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeHtml(input.serviceType)}</p>
-        <p style="margin:0 0 8px;"><strong>Date and time:</strong> ${escapeHtml(formattedDate)}</p>
-        <p style="margin:0 0 8px;"><strong>Pickup:</strong> ${escapeHtml(input.pickupLocation)}</p>
-        ${input.dropoffLocation ? `<p style="margin:0 0 8px;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
-        <p style="margin:0 0 12px;"><strong>Amount paid:</strong> £${input.amount.toFixed(2)}</p>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
-          <p style="margin:0;">Our office team will confirm your booking and assign a greeter at least 24 hours before your service time. You will receive another update when your greeter is assigned.</p>
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+          ${buildInfoRow("Booking Ref", escapeHtml(input.bookingRef))}
+          ${buildInfoRow("Service", escapeHtml(input.serviceType))}
+          ${buildInfoRow("Date &amp; Time", escapeHtml(formattedDate))}
+          ${buildInfoRow("Pickup", escapeHtml(input.pickupLocation))}
+          ${input.dropoffLocation ? buildInfoRow("Drop-off", escapeHtml(input.dropoffLocation)) : ""}
+          ${buildInfoRow("Amount Paid", `<strong style="color:${BRAND_DARK};">£${input.amount.toFixed(2)}</strong>`)}
+        </table>
+        <div style="margin-top:18px;padding:14px;background:#fffbea;border:1px solid #fde68a;border-radius:5px;font-size:13px;color:#92400e;">
+          <strong>What happens next?</strong> Our office team will confirm your booking and assign a greeter.
+          You will receive a separate email as soon as your greeter is confirmed.
         </div>
       `,
-      footerNote: "VIP Greeters booking team will send assignment details once your greeter is scheduled.",
+      footerNote: "VIP Greeters — Premium Meet & Greet Services at Heathrow.",
+      supportEmail: input.supportEmail,
     }),
   };
 }
@@ -305,24 +400,28 @@ export function buildOfficeBookingNotificationEmail(input: BookingConfirmationIn
   const adminUrl = appUrl ? `${appUrl}/administrator/signin` : "";
 
   return {
-    subject: `Office action needed: ${input.bookingRef}`,
+    subject: `Action required: New booking ${input.bookingRef}`,
     text: `New paid booking received. Ref: ${input.bookingRef}. Customer: ${input.fullName} (${input.email}). Service: ${input.serviceType}. Date: ${formattedDate}. Pickup: ${input.pickupLocation}. ${input.dropoffLocation ? `Drop-off: ${input.dropoffLocation}. ` : ""}Amount: £${input.amount.toFixed(2)}. Office workflow: confirm booking and assign a greeter at least 24 hours before service time. Please review it in the office dashboard${adminUrl ? `: ${adminUrl}` : "."}`,
     html: buildEmailShell({
-      title: "Booking received for office review",
-      intro: "A customer payment has cleared. The office team should now confirm this booking and assign an available greeter.",
+      preheader: `New paid booking from ${input.fullName} — assign a greeter before ${formattedDate}`,
+      title: "New Booking — Office Action Required",
+      intro: "A customer payment has cleared. Please confirm the booking and assign an available greeter at least 24 hours before the service time.",
       contentHtml: `
-        <p style="margin:0 0 8px;"><strong>Reference:</strong> ${escapeHtml(input.bookingRef)}</p>
-        <p style="margin:0 0 8px;"><strong>Customer:</strong> ${customer}</p>
-        <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeHtml(input.serviceType)}</p>
-        <p style="margin:0 0 8px;"><strong>Date and time:</strong> ${escapeHtml(formattedDate)}</p>
-        <p style="margin:0 0 8px;"><strong>Pickup:</strong> ${escapeHtml(input.pickupLocation)}</p>
-        ${input.dropoffLocation ? `<p style="margin:0 0 8px;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
-        <p style="margin:0 0 12px;"><strong>Amount paid:</strong> £${input.amount.toFixed(2)}</p>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
-          <p style="margin:0 0 8px;"><strong>Next step:</strong> Confirm booking and assign a greeter at least 24 hours before service time.</p>
-          ${adminUrl ? `<p style="margin:0;"><a href="${escapeHtml(adminUrl)}" style="color:${BRAND_DARK};font-weight:700;">Open office dashboard</a></p>` : ""}
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+          ${buildInfoRow("Reference", escapeHtml(input.bookingRef))}
+          ${buildInfoRow("Customer", customer)}
+          ${buildInfoRow("Service", escapeHtml(input.serviceType))}
+          ${buildInfoRow("Date &amp; Time", escapeHtml(formattedDate))}
+          ${buildInfoRow("Pickup", escapeHtml(input.pickupLocation))}
+          ${input.dropoffLocation ? buildInfoRow("Drop-off", escapeHtml(input.dropoffLocation)) : ""}
+          ${buildInfoRow("Amount Paid", `<strong style="color:${BRAND_DARK};">£${input.amount.toFixed(2)}</strong>`)}
+        </table>
+        <div style="margin-top:18px;padding:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:5px;font-size:13px;color:#991b1b;">
+          <strong>Next step:</strong> Open the dashboard, confirm this booking and assign an available greeter.
         </div>
       `,
+      ctaText: adminUrl ? "Open Office Dashboard" : undefined,
+      ctaUrl: adminUrl || undefined,
       footerNote: "This email was sent to the business owner and office operations inbox.",
       supportEmail: input.supportEmail,
     }),
@@ -343,24 +442,32 @@ export function buildPassengerGreeterAssignmentEmail(input: GreeterAssignmentEma
   const greeterEmail = String(input.greeterEmail || "").trim().toLowerCase();
 
   return {
-    subject: `Greeter assigned: ${input.bookingRef}`,
+    subject: `Your greeter is confirmed — ${input.bookingRef} | VIP Greeters`,
     text: `Hello ${input.passengerName}, your greeter has been assigned for booking ${input.bookingRef}. Greeter: ${greeterName}.${greeterPhone ? ` Phone: ${greeterPhone}.` : ""}${greeterEmail ? ` Email: ${greeterEmail}.` : ""} Service: ${input.serviceType}. Date: ${formattedDate}. Pickup: ${input.pickupLocation}.${input.dropoffLocation ? ` Drop-off: ${input.dropoffLocation}.` : ""}`,
     html: buildEmailShell({
-      title: "Your greeter is assigned",
-      intro: `Hello ${input.passengerName}, your booking is now confirmed and a greeter has been assigned.`,
+      preheader: `${greeterName} will meet you at ${input.pickupLocation} on ${formattedDate}`,
+      title: "Your Greeter Has Been Assigned",
+      intro: `Hello ${escapeHtml(input.passengerName)}, everything is in order for your upcoming journey. Your dedicated VIP greeter is confirmed and ready to assist you.`,
       contentHtml: `
-        <p style="margin:0 0 8px;"><strong>Booking reference:</strong> ${escapeHtml(input.bookingRef)}</p>
-        <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeHtml(input.serviceType)}</p>
-        <p style="margin:0 0 8px;"><strong>Date and time:</strong> ${escapeHtml(formattedDate)}</p>
-        <p style="margin:0 0 8px;"><strong>Pickup:</strong> ${escapeHtml(input.pickupLocation)}</p>
-        ${input.dropoffLocation ? `<p style="margin:0 0 8px;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
-          <p style="margin:0 0 8px;"><strong>Assigned greeter:</strong> ${escapeHtml(greeterName)}</p>
-          ${greeterPhone ? `<p style="margin:0 0 8px;"><strong>Greeter phone:</strong> ${escapeHtml(greeterPhone)}</p>` : ""}
-          ${greeterEmail ? `<p style="margin:0;"><strong>Greeter email:</strong> ${escapeHtml(greeterEmail)}</p>` : ""}
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+          ${buildInfoRow("Booking Ref", escapeHtml(input.bookingRef))}
+          ${buildInfoRow("Service", escapeHtml(input.serviceType))}
+          ${buildInfoRow("Date &amp; Time", escapeHtml(formattedDate))}
+          ${buildInfoRow("Pickup", escapeHtml(input.pickupLocation))}
+          ${input.dropoffLocation ? buildInfoRow("Drop-off", escapeHtml(input.dropoffLocation)) : ""}
+          <tr><td colspan="2" style="padding-top:14px;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
+          <tr>
+            <td colspan="2" style="padding:12px 0 4px;font-size:11px;font-weight:700;letter-spacing:1.5px;color:#6b7280;text-transform:uppercase;">Your Greeter</td>
+          </tr>
+          ${buildInfoRow("Name", `<strong>${escapeHtml(greeterName)}</strong>`)}
+          ${greeterPhone ? buildInfoRow("Phone", `<a href="tel:${escapeHtml(greeterPhone)}" style="color:${BRAND_DARK};font-weight:600;">${escapeHtml(greeterPhone)}</a>`) : ""}
+          ${greeterEmail ? buildInfoRow("Email", `<a href="mailto:${escapeHtml(greeterEmail)}" style="color:${BRAND_DARK};">${escapeHtml(greeterEmail)}</a>`) : ""}
+        </table>
+        <div style="margin-top:18px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;font-size:13px;color:#166534;">
+          Please keep your phone available on the day of service in case your greeter needs to reach you.
         </div>
       `,
-      footerNote: "Please keep your phone available on the day of service in case the greeter needs to contact you.",
+      footerNote: "VIP Greeters — Premium Meet & Greet Services at Heathrow.",
       supportEmail: input.supportEmail,
     }),
   };
@@ -377,23 +484,37 @@ export function buildGreeterAssignmentEmail(input: GreeterAssignmentEmailInput) 
 
   const passengerName = String(input.passengerName || "Passenger").trim();
   const passengerEmail = String(input.passengerEmail || "").trim().toLowerCase();
+  const appUrl = String(process.env.NEXT_PUBLIC_BASE_URL || WEBSITE_URL || "").trim().replace(/\/$/, "");
+  const dashboardUrl = appUrl ? `${appUrl}/greeter/dashboard` : "";
 
   return {
-    subject: `New greeter assignment: ${input.bookingRef}`,
+    subject: `New job assigned: ${input.bookingRef} | VIP Greeters`,
     text: `You have been assigned booking ${input.bookingRef}. Passenger: ${passengerName}.${passengerEmail ? ` Passenger email: ${passengerEmail}.` : ""} Service: ${input.serviceType}. Date: ${formattedDate}. Pickup: ${input.pickupLocation}.${input.dropoffLocation ? ` Drop-off: ${input.dropoffLocation}.` : ""} Please confirm meet-up status from your greeter dashboard.`,
     html: buildEmailShell({
-      title: "New job assignment",
-      intro: "You have a new passenger booking assigned to you.",
+      preheader: `New assignment: meet ${passengerName} at ${input.pickupLocation} on ${formattedDate}`,
+      title: "New Job Assignment",
+      intro: "You have a new passenger booking assigned to you. Please review the details below and update your status via the greeter dashboard.",
       contentHtml: `
-        <p style="margin:0 0 8px;"><strong>Booking reference:</strong> ${escapeHtml(input.bookingRef)}</p>
-        <p style="margin:0 0 8px;"><strong>Passenger:</strong> ${escapeHtml(passengerName)}</p>
-        ${passengerEmail ? `<p style="margin:0 0 8px;"><strong>Passenger email:</strong> ${escapeHtml(passengerEmail)}</p>` : ""}
-        <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeHtml(input.serviceType)}</p>
-        <p style="margin:0 0 8px;"><strong>Date and time:</strong> ${escapeHtml(formattedDate)}</p>
-        <p style="margin:0 0 8px;"><strong>Pickup:</strong> ${escapeHtml(input.pickupLocation)}</p>
-        ${input.dropoffLocation ? `<p style="margin:0;"><strong>Drop-off:</strong> ${escapeHtml(input.dropoffLocation)}</p>` : ""}
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+          ${buildInfoRow("Booking Ref", escapeHtml(input.bookingRef))}
+          ${buildInfoRow("Service", escapeHtml(input.serviceType))}
+          ${buildInfoRow("Date &amp; Time", `<strong style="color:${BRAND_DARK};">${escapeHtml(formattedDate)}</strong>`)}
+          ${buildInfoRow("Pickup", `<strong>${escapeHtml(input.pickupLocation)}</strong>`)}
+          ${input.dropoffLocation ? buildInfoRow("Drop-off", escapeHtml(input.dropoffLocation)) : ""}
+          <tr><td colspan="2" style="padding-top:14px;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
+          <tr>
+            <td colspan="2" style="padding:12px 0 4px;font-size:11px;font-weight:700;letter-spacing:1.5px;color:#6b7280;text-transform:uppercase;">Passenger</td>
+          </tr>
+          ${buildInfoRow("Name", escapeHtml(passengerName))}
+          ${passengerEmail ? buildInfoRow("Email", `<a href="mailto:${escapeHtml(passengerEmail)}" style="color:${BRAND_DARK};">${escapeHtml(passengerEmail)}</a>`) : ""}
+        </table>
+        <div style="margin-top:18px;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;font-size:13px;color:#1e40af;">
+          Use your greeter dashboard to mark this booking as <strong>accepted</strong>, <strong>passenger met</strong>, and <strong>completed</strong>.
+        </div>
       `,
-      footerNote: "Use the greeter dashboard to update accepted, pickup, and completed milestones.",
+      ctaText: dashboardUrl ? "Open Greeter Dashboard" : undefined,
+      ctaUrl: dashboardUrl || undefined,
+      footerNote: "This assignment was sent by the VIP Greeters office team.",
       supportEmail: input.supportEmail,
     }),
   };

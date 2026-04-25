@@ -78,7 +78,7 @@ export default function GreeterDashboardPage() {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       if (!nextUser) {
-        router.push("/user/signin");
+        router.push("/greeter/signin");
         return;
       }
 

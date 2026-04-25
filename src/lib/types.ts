@@ -60,8 +60,13 @@ export interface BookingData {
 export interface UserData {
   email: string;
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
   phoneNumber?: string;
-  role?: 'USER' | 'ADMIN';
+  role?: 'USER' | 'ADMIN' | 'GREETER' | 'HEATHROW';
 }
 
 // Firestore Collections

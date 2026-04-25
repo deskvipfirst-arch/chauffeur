@@ -187,8 +187,12 @@ export async function resendSignUpVerificationEmail(_auth: typeof auth, email: s
   if (error) throw normalizeAuthError(error);
 }
 
-export async function signInWithPopup(_auth: typeof auth, provider: GoogleAuthProvider) {
-  const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/user/dashboard` : undefined;
+export async function signInWithPopup(
+  _auth: typeof auth,
+  provider: GoogleAuthProvider,
+  redirectPath = "/user/dashboard"
+) {
+  const redirectTo = typeof window !== "undefined" ? `${window.location.origin}${redirectPath}` : undefined;
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: provider.providerId as "google",

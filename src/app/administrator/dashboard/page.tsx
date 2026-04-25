@@ -536,7 +536,6 @@ export default function AdminDashboard() {
   }).length;
   const hourlyHireBookings = bookings.filter((booking) => normalizeServiceType(booking.service_type).includes("hour")).length;
   const totalRevenue = bookings.reduce((sum, booking) => sum + (booking.amount || 0), 0);
-  const activeDrivers = drivers.filter((driver) => driver.status === "active").length;
   const activeJobs = bookings.filter((booking) => ["assigned", "accepted", "picked_up"].includes(String(booking.driver_status || booking.status))).length;
   const completedJobs = bookings.filter((booking) => String(booking.driver_status || booking.status) === "completed").length;
   const heathrowBookings = filterHeathrowBookings(bookings);
@@ -631,7 +630,7 @@ export default function AdminDashboard() {
           { label: "Open Invoices", onClick: () => setActiveTab("invoices") },
         ]
       : activeTab === "people"
-        ? [{ label: "Add Admin", onClick: () => router.push("/administrator/add-admin") }]
+        ? [{ label: "Invite Staff", onClick: () => router.push("/administrator/add-admin") }]
         : activeTab === "passengers"
           ? [{ label: "Open Dispatch", onClick: () => setActiveTab("bookings") }]
           : activeTab === "bookings"
@@ -780,7 +779,7 @@ export default function AdminDashboard() {
                     <>
                       <DropdownMenuItem onClick={() => router.push("/administrator/add-admin")}>
                         <Shield className="mr-2 h-4 w-4" />
-                        <span>Add Admin</span>
+                        <span>Invite Staff</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => router.push("/administrator/change-password")}>
                         <Key className="mr-2 h-4 w-4" />
