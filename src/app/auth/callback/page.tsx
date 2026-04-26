@@ -4,6 +4,15 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
+function sanitizeNextPath(value: string | null) {
+  const candidate = String(value || "").trim();
+  if (!candidate.startsWith("/") || candidate.startsWith("//")) {
+    return "/";
+  }
+
+  return candidate;
+}
+
 function AuthCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -12,6 +21,7 @@ function AuthCallbackContent() {
 
   useEffect(() => {
     const tokenHash = searchParams.get("token_hash");
+    const authCode = searchParams.get("code");
     const type = searchParams.get("type") as
       | "invite"
       | "recovery"
@@ -19,14 +29,58 @@ function AuthCallbackContent() {
       | "magiclink"
       | "signup"
       | null;
-    const next = searchParams.get("next") || "/";
+    const next = sanitizeNextPath(searchParams.get("next"));
 
     const hashParams = typeof window !== "undefined"
       ? new URLSearchParams(window.location.hash.replace(/^#/, ""))
       : new URLSearchParams();
     const hashAccessToken = hashParams.get("access_token");
     const hashRefreshToken = hashParams.get("refresh_token");
+    const hashTokenHash = hashParams.get("token_hash");
+    const hashOtpType = hashParams.get("type") as
+      | "invite"
+      | "recovery"
+      | "email"
+      | "magiclink"
+      | "signup"
+      | null;
     const hashType = hashParams.get("type") as "invite" | null;
+
+    if (authCode) {
+      setStatus("Completing secure sign in…");
+      supabase.auth.exchangeCodeForSession(authCode).then(({ error: exchangeError }) => {
+        if (exchangeError) {
+          setError(exchangeError.message || "Failed to complete sign in.");
+          return;
+        }
+
+        if (type === "invite") {
+          router.replace(`/auth/set-password?next=${encodeURIComponent(next)}`);
+          return;
+        }
+
+        router.replace(next);
+      });
+      return;
+    }
+
+    if (!tokenHash && hashTokenHash && hashOtpType) {
+      setStatus("Verifying your invitation…");
+      supabase.auth.verifyOtp({ token_hash: hashTokenHash, type: hashOtpType }).then(({ error: verifyError }) => {
+        if (verifyError) {
+          setError(verifyError.message || "Failed to verify your invitation. Please request a new one.");
+          return;
+        }
+
+        if (hashOtpType === "invite") {
+          router.replace(`/auth/set-password?next=${encodeURIComponent(next)}`);
+          return;
+        }
+
+        router.replace(next);
+      });
+      return;
+    }
 
     if (!tokenHash && hashAccessToken && hashRefreshToken) {
       setStatus("Finalizing your secure session…");

@@ -50,6 +50,10 @@ function toAbsoluteBaseUrl(value: string) {
   return `https://${trimmed}`;
 }
 
+function logInviteLinkWarning(event: string, details: Record<string, unknown>) {
+  console.warn("[staff-invite-link]", event, JSON.stringify(details));
+}
+
 function normalizeInviteActionLink(input: {
   actionLink: string;
   baseUrl: string;
@@ -63,9 +67,15 @@ function normalizeInviteActionLink(input: {
     const hashParams = new URLSearchParams(hash);
     const accessToken = hashParams.get("access_token");
     const refreshToken = hashParams.get("refresh_token");
+    const hashTokenHash = hashParams.get("token_hash");
+    const hashType = hashParams.get("type");
 
     if (accessToken && refreshToken) {
       return `${callbackBase}#${hash}`;
+    }
+
+    if (hashTokenHash && hashType) {
+      return `${callbackBase}&token_hash=${encodeURIComponent(hashTokenHash)}&type=${encodeURIComponent(hashType)}`;
     }
 
     const tokenHash = parsed.searchParams.get("token_hash");
@@ -74,8 +84,18 @@ function normalizeInviteActionLink(input: {
       return `${callbackBase}&token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(type)}`;
     }
 
+    logInviteLinkWarning("unexpected-action-link-shape", {
+      host: parsed.host,
+      path: parsed.pathname,
+      hasHash: Boolean(hash),
+      queryKeys: Array.from(parsed.searchParams.keys()),
+    });
+
     return input.actionLink;
   } catch {
+    logInviteLinkWarning("invalid-action-link-url", {
+      actionLinkSample: input.actionLink.slice(0, 120),
+    });
     return input.actionLink;
   }
 }
