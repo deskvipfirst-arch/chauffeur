@@ -60,8 +60,8 @@ import {
   buildOperationsAlerts,
   buildUnauthorizedNotification,
 } from "@/lib/notifications";
-import { auth, getAccessToken } from "@/lib/supabase";
-import { onAuthStateChanged } from "@/lib/supabase-auth";
+import { auth, getAccessToken } from "@/lib/supabase/browser";
+import { onAuthStateChanged } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 import type { Booking, Driver, DriverPayment, GreeterInvoice, OfficeStaff, Vehicle } from "@/types/admin";
 
@@ -1225,3 +1225,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+

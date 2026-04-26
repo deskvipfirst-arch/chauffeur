@@ -8,7 +8,7 @@ import { Vehicle } from "@/types/admin";
 import { Label } from "../ui/label";
 import Image from "next/image";
 import Notification from "@/components/ui/notification";
-import { db, storage } from "@/lib/supabase";
+import { db, storage } from "@/lib/supabase/browser";
 import { collection, addDoc, updateDoc, deleteDoc, doc } from "@/lib/supabase-db";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "@/lib/supabase-storage";
 
@@ -566,3 +566,4 @@ export default function VehiclesTab({
     </div>
   );
 }
+

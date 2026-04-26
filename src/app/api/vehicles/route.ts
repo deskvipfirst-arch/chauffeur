@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getVehicles } from "@/lib/supabase-admin";
+import { getVehicles } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {

@@ -1,4 +1,20 @@
-import { isSupabaseConfigured, supabaseClient as supabase } from "@/lib/supabase/client";
+import { isSupabaseConfigured, supabaseClient as supabase } from "@/lib/supabase/browser";
+
+type JsonObject = Record<string, unknown>;
+
+type PostgrestBuilder = {
+  eq: (field: string, value: unknown) => PostgrestBuilder;
+  neq: (field: string, value: unknown) => PostgrestBuilder;
+  gt: (field: string, value: unknown) => PostgrestBuilder;
+  gte: (field: string, value: unknown) => PostgrestBuilder;
+  lt: (field: string, value: unknown) => PostgrestBuilder;
+  lte: (field: string, value: unknown) => PostgrestBuilder;
+  order: (field: string, options: { ascending: boolean }) => PostgrestBuilder;
+  then: <TResult1 = { data: JsonObject[] | null; error: { code?: string; message?: string; details?: string } | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: JsonObject[] | null; error: { code?: string; message?: string; details?: string } | null }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ) => PromiseLike<TResult1 | TResult2>;
+};
 
 type CollectionRef = {
   kind: "collection";
@@ -15,7 +31,7 @@ type WhereConstraint = {
   kind: "where";
   field: string;
   op: string;
-  value: any;
+  value: unknown;
 };
 
 type OrderConstraint = {
@@ -73,12 +89,12 @@ function toDbFieldName(field: string) {
   return APP_TO_DB_FIELD_ALIASES[field] ?? field;
 }
 
-export function normalizeDbRow(row: any) {
+export function normalizeDbRow(row: unknown): JsonObject {
   if (!row || typeof row !== "object" || Array.isArray(row)) {
-    return row;
+    return (row as JsonObject) || {};
   }
 
-  const normalized = { ...row };
+  const normalized = { ...(row as JsonObject) } as JsonObject;
   for (const [dbField, appField] of Object.entries(DB_TO_APP_FIELD_ALIASES)) {
     if (normalized[dbField] !== undefined && normalized[appField] === undefined) {
       normalized[appField] = normalized[dbField];
@@ -98,7 +114,7 @@ export function normalizeDbRow(row: any) {
   return normalized;
 }
 
-function makeDocSnapshot(row: any) {
+function makeDocSnapshot(row: unknown) {
   const normalizedRow = normalizeDbRow(row);
   return {
     id: String(normalizedRow?.id ?? ""),
@@ -107,7 +123,7 @@ function makeDocSnapshot(row: any) {
   };
 }
 
-function makeQuerySnapshot(rows: any[]) {
+function makeQuerySnapshot(rows: JsonObject[]) {
   const docs = rows.map((row) => makeDocSnapshot(row));
   return {
     empty: docs.length === 0,
@@ -116,7 +132,7 @@ function makeQuerySnapshot(rows: any[]) {
   };
 }
 
-function applyWhere(builder: any, constraint: WhereConstraint) {
+function applyWhere(builder: PostgrestBuilder, constraint: WhereConstraint): PostgrestBuilder {
   const field = toDbFieldName(constraint.field);
 
   switch (constraint.op) {
@@ -137,8 +153,8 @@ function applyWhere(builder: any, constraint: WhereConstraint) {
   }
 }
 
-export function sanitizeMutationPayload(data: Record<string, any>) {
-  const payload = { ...data };
+export function sanitizeMutationPayload(data: object) {
+  const payload = { ...(data as JsonObject) };
 
   for (const [appField, dbField] of Object.entries(APP_TO_DB_FIELD_ALIASES)) {
     if (payload[appField] !== undefined) {
@@ -152,46 +168,15 @@ export function sanitizeMutationPayload(data: Record<string, any>) {
   return payload;
 }
 
-function extractMissingColumn(error: { message?: string; details?: string } | null) {
-  const errorText = `${error?.message ?? ""} ${error?.details ?? ""}`;
-  const match = errorText.match(/Could not find the ['"]([^'"]+)['"] column/i);
-  return match?.[1] ?? null;
-}
-
-async function runMutationWithSchemaFallback<T>(
-  payload: Record<string, any>,
-  action: (nextPayload: Record<string, any>) => Promise<{ data?: T | null; error: any }>
-) {
-  let nextPayload = { ...payload };
-
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const result = await action(nextPayload);
-
-    if (!result.error) {
-      return result;
-    }
-
-    const missingColumn = extractMissingColumn(result.error);
-    if (missingColumn && missingColumn in nextPayload) {
-      delete nextPayload[missingColumn];
-      continue;
-    }
-
-    throw result.error;
-  }
-
-  throw new Error("Supabase mutation failed after schema compatibility retries.");
-}
-
-export function collection(_db: any, table: string): CollectionRef {
+export function collection(_db: unknown, table: string): CollectionRef {
   return { kind: "collection", table };
 }
 
-export function doc(_db: any, table: string, id: string): DocRef {
+export function doc(_db: unknown, table: string, id: string): DocRef {
   return { kind: "doc", table, id };
 }
 
-export function where(field: string, op: string, value: any): WhereConstraint {
+export function where(field: string, op: string, value: unknown): WhereConstraint {
   return { kind: "where", field, op, value };
 }
 
@@ -210,7 +195,7 @@ export function query(ref: CollectionRef, ...constraints: Array<WhereConstraint 
 export async function getDocs(ref: CollectionRef | QueryRef) {
   if (!isSupabaseConfigured) return makeQuerySnapshot([]);
 
-  let builder: any = supabase.from(ref.table).select("*");
+  let builder = supabase.from(ref.table).select("*") as unknown as PostgrestBuilder;
 
   if (ref.kind === "query") {
     for (const constraint of ref.constraints) {
@@ -263,38 +248,32 @@ export async function getDoc(ref: DocRef) {
   return makeDocSnapshot(data);
 }
 
-export async function addDoc(ref: CollectionRef, data: Record<string, any>) {
+export async function addDoc(ref: CollectionRef, data: object) {
   if (!isSupabaseConfigured) {
     return { id: "" };
   }
 
   const payload = sanitizeMutationPayload(data);
 
-  const { data: inserted, error } = await runMutationWithSchemaFallback<any>(payload, async (nextPayload) =>
-    await supabase.from(ref.table).insert(nextPayload).select("*").single()
-  );
+  const { data: inserted, error } = await supabase.from(ref.table).insert(payload).select("*").single();
 
   if (error) throw error;
-  return { id: String((inserted as any)?.id ?? "") };
+  return { id: String((inserted as { id?: string | number } | null)?.id ?? "") };
 }
 
-export async function setDoc(ref: DocRef, data: Record<string, any>) {
+export async function setDoc(ref: DocRef, data: object) {
   if (!isSupabaseConfigured) return;
 
   const payload = sanitizeMutationPayload({ id: ref.id, ...data });
-  const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
-    await supabase.from(ref.table).upsert(nextPayload)
-  );
+  const { error } = await supabase.from(ref.table).upsert(payload);
   if (error) throw error;
 }
 
-export async function updateDoc(ref: DocRef, data: Record<string, any>) {
+export async function updateDoc(ref: DocRef, data: object) {
   if (!isSupabaseConfigured) return;
 
   const payload = sanitizeMutationPayload(data);
-  const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
-    await supabase.from(ref.table).update(nextPayload).eq("id", ref.id)
-  );
+  const { error } = await supabase.from(ref.table).update(payload).eq("id", ref.id);
   if (error) throw error;
 }
 

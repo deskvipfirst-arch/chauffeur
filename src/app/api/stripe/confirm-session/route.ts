@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { adminDb } from "@/lib/supabase-admin";
+import { adminDb } from "@/lib/supabase/admin";
 import {
   getPaymentSyncErrorMessage,
   isLegacyBookingStatusConstraintError,
@@ -13,7 +13,7 @@ import {
   getOfficeNotificationRecipients,
   sendTransactionalEmail,
 } from "@/lib/email";
-import { getOfficeNotificationEmailSetting } from "@/lib/supabase-admin";
+import { getOfficeNotificationEmailSetting } from "@/lib/supabase/admin";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 

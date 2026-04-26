@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { upsertServiceRate } from "@/lib/supabase-admin";
+import { upsertServiceRate } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
   try {

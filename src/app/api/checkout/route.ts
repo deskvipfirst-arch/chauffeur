@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/supabase-admin";
-import { getBaseUrl } from "@/lib/base-url";
+import { adminDb } from "@/lib/supabase/admin";
+import { getBaseUrl } from "@/lib/url";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 

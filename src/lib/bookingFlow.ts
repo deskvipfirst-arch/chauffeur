@@ -106,9 +106,10 @@ export function splitFullName(fullName: string) {
   };
 }
 
-export function getSignupErrorMessage(error: any) {
-  const message = String(error?.message ?? "");
-  const code = String(error?.code ?? "").toLowerCase();
+export function getSignupErrorMessage(error: unknown) {
+  const errorObj = error as { message?: string; code?: string };
+  const message = String(errorObj?.message ?? "");
+  const code = String(errorObj?.code ?? "").toLowerCase();
   const lower = message.toLowerCase();
 
   if (code.includes("email-already") || lower.includes("already registered")) {

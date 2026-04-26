@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Booking, GreeterInvoice, GreeterInvoiceStatus } from "@/types/admin";
 import { toast } from "react-hot-toast";
 import { getInvoiceStatusLabel, getOfficeInvoiceActions, summarizeInvoiceMetrics } from "@/lib/invoiceWorkflow";
-import { getAccessToken } from "@/lib/supabase";
+import { getAccessToken } from "@/lib/supabase/browser";
 
 type InvoicesTabProps = {
   bookings: Booking[];

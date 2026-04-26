@@ -1,4 +1,4 @@
-import { auth, db, getAccessToken } from "@/lib/supabase";
+import { auth, db, getAccessToken } from "@/lib/supabase/browser";
 import { doc, getDoc } from "@/lib/supabase-db";
 import { canonicalizeUserRole, isAllowedRole } from "./roles";
 
@@ -25,9 +25,10 @@ export async function createAdminUser(email: string, password: string) {
   try {
     const result = await saveAdminRoleServerSide(email, password);
     return { success: true, user: result?.user || { email } };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating admin user:", error);
-    throw new Error(error.message || "Failed to create admin user");
+    const message = error instanceof Error ? error.message : "Failed to create admin user";
+    throw new Error(message);
   }
 }
 
@@ -37,7 +38,7 @@ export async function getUserRole(userId: string) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
     if (userDoc.exists()) {
-      return canonicalizeUserRole(userDoc.data().role || null);
+      return canonicalizeUserRole((userDoc.data() as { role?: string | null })?.role || null);
     }
 
     if (auth.currentUser?.uid === userId) {
@@ -74,8 +75,10 @@ export async function createFirstAdminUser(email: string, password: string) {
   try {
     const result = await saveAdminRoleServerSide(email, password);
     return { success: true, user: result?.user || { email } };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating first admin user:", error);
-    throw new Error(error.message || "Failed to create first admin user");
+    const message = error instanceof Error ? error.message : "Failed to create first admin user";
+    throw new Error(message);
   }
 } 
+

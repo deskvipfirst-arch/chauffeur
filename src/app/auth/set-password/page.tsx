@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { supabaseClient } from "@/lib/supabase/client";
+import { supabaseClient } from "@/lib/supabase/browser";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -144,3 +144,4 @@ export default function SetPasswordPage() {
     </Suspense>
   );
 }
+

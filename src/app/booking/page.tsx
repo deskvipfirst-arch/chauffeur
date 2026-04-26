@@ -14,8 +14,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { onAuthStateChanged } from "@/lib/supabase-auth";
-import { auth, db } from "@/lib/supabase";
+import { onAuthStateChanged } from "@/lib/supabase/browser";
+import { auth, db } from "@/lib/supabase/browser";
 import { doc, getDoc } from "@/lib/supabase-db";
 import { Icons } from "@/components/ui/icons";
 import { loadStoredBookingDraft, saveStoredBookingDraft } from "@/lib/bookingFlow";
@@ -49,6 +49,12 @@ type BookingDetails = {
   hireDuration?: "full_day" | "half_day";
 };
 
+type BookingProfile = {
+  phone?: string;
+  phoneNumber?: string;
+  phone_number?: string;
+} & Record<string, unknown>;
+
 function BookingContent() {
   const router = useRouter();
   const [notification, setNotification] = useState<{
@@ -60,7 +66,7 @@ function BookingContent() {
   const [locationsError, setLocationsError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<import('@/lib/supabase/browser').CompatUser | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
 
   const showNotification = (type: "success" | "error", message: string) => {
@@ -106,7 +112,7 @@ function BookingContent() {
       if (nextUser) {
         getDoc(doc(db, "profiles", nextUser.uid))
           .then((profileDoc) => {
-            const profile = profileDoc.data() || {};
+            const profile = (profileDoc.data() || {}) as BookingProfile;
             const profileName = getUserDisplayName(profile, nextUser);
             const phone = String(
               profile.phone || profile.phoneNumber || profile.phone_number || ""
@@ -1077,3 +1083,4 @@ export default function Booking() {
     </Suspense>
   );
 }
+

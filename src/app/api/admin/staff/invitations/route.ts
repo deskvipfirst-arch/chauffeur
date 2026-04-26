@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { canonicalizeUserRole } from "@/lib/roles";
-import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase-admin";
+import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -16,6 +16,17 @@ type StaffInvitationRecord = {
   invitedAt: string | null;
   acceptedAt: string | null;
   status: "pending" | "accepted";
+};
+
+type StaffAuthUserLike = {
+  id: string;
+  email?: string | null;
+  created_at?: string | null;
+  user_metadata?: Record<string, unknown>;
+  last_sign_in_at?: string | null;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
+  invited_at?: string | null;
 };
 
 function toStaffRole(value: string): StaffRole | null {
@@ -40,21 +51,22 @@ export async function GET(request: Request) {
 
     const records: StaffInvitationRecord[] = data.users
       .map((user) => {
-        const metadata = (user.user_metadata || {}) as Record<string, unknown>;
+        const authUser = user as StaffAuthUserLike;
+        const metadata = (authUser.user_metadata || {}) as Record<string, unknown>;
         const role = toStaffRole(String(metadata.role || ""));
         if (!role) {
           return null;
         }
 
-        const email = String(user.email || "").trim().toLowerCase();
+        const email = String(authUser.email || "").trim().toLowerCase();
         const acceptedAt =
-          String((user as any).last_sign_in_at || (user as any).email_confirmed_at || (user as any).confirmed_at || "").trim() ||
+          String(authUser.last_sign_in_at || authUser.email_confirmed_at || authUser.confirmed_at || "").trim() ||
           null;
-        const invitedAt = String((user as any).invited_at || user.created_at || "").trim() || null;
+        const invitedAt = String(authUser.invited_at || authUser.created_at || "").trim() || null;
         const status = acceptedAt ? "accepted" : "pending";
 
         return {
-          id: user.id,
+          id: authUser.id,
           email,
           role,
           firstName: String(metadata.first_name || metadata.firstName || "").trim() || null,

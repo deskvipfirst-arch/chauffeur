@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDriverByEmail, requireAuthorizedUser, updateBooking } from "@/lib/supabase-admin";
+import { getDriverByEmail, requireAuthorizedUser, updateBooking } from "@/lib/supabase/admin";
 
 export async function PUT(
   request: NextRequest,

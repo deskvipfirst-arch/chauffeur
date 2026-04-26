@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin, getBooking, getDriverById } from "@/lib/supabase-admin";
+import { supabaseAdmin, getBooking, getDriverById } from "@/lib/supabase/admin";
 
 const ASSIGNED_STATUSES = new Set(["assigned", "accepted", "picked_up", "completed"]);
 

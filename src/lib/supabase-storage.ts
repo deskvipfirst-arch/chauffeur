@@ -1,4 +1,4 @@
-import { storage } from "@/lib/supabase/client";
+import { storage } from "@/lib/supabase/browser";
 
 const STORAGE_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ||

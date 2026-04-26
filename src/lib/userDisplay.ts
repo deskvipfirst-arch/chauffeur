@@ -3,11 +3,12 @@ type BasicUser = {
   email?: string | null;
 };
 
-function readValue(source: any, keys: string[]) {
-  if (!source || typeof source !== "object") return "";
+function readValue(source: unknown, keys: string[]) {
+  const sourceObj = source as Record<string, any> | null;
+  if (!sourceObj || typeof sourceObj !== "object") return "";
 
   for (const key of keys) {
-    const value = source[key];
+    const value = sourceObj[key];
     if (typeof value === "string" && value.trim()) {
       return value.trim();
     }
@@ -35,7 +36,7 @@ function splitName(value: string) {
   };
 }
 
-export function getUserDisplayName(profile?: any, user?: BasicUser | null) {
+export function getUserDisplayName(profile?: Record<string, any> | null, user?: BasicUser | null) {
   const profileFirst = readValue(profile, ["firstName", "firstname", "first_name"]);
   const profileLast = readValue(profile, ["lastName", "lastname", "last_name"]);
   const profileFull = readValue(profile, ["displayName", "display_name", "full_name"]);
@@ -56,7 +57,7 @@ export function getUserDisplayName(profile?: any, user?: BasicUser | null) {
   return splitName(emailName).fullName || "Passenger";
 }
 
-export function getUserFirstName(profile?: any, user?: BasicUser | null) {
+export function getUserFirstName(profile?: Record<string, any> | null, user?: BasicUser | null) {
   const directFirst = readValue(profile, ["firstName", "firstname", "first_name"]);
   if (directFirst) {
     return splitName(directFirst).firstName || "Passenger";
@@ -66,7 +67,7 @@ export function getUserFirstName(profile?: any, user?: BasicUser | null) {
   return splitName(displayName).firstName || "Passenger";
 }
 
-export function getUserInitials(profile?: any, user?: BasicUser | null) {
+export function getUserInitials(profile?: Record<string, any> | null, user?: BasicUser | null) {
   const displayName = getUserDisplayName(profile, user);
   const parts = splitName(displayName).fullName.split(/\s+/).filter(Boolean);
   return parts.slice(0, 2).map((part) => part.charAt(0)).join("").toUpperCase() || "P";

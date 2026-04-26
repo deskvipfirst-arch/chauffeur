@@ -8,8 +8,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Label } from "@radix-ui/react-label";
 import { Icons } from "@/components/ui/icons";
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, resendSignUpVerificationEmail, sendPasswordResetEmail } from "@/lib/supabase-auth";
-import { auth } from "@/lib/supabase";
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, resendSignUpVerificationEmail, sendPasswordResetEmail, onAuthStateChanged } from "@/lib/supabase/browser";
+import { auth } from "@/lib/supabase/browser";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { loadStoredBookingDraft } from "@/lib/bookingFlow";
@@ -62,6 +62,16 @@ export default function SigninClient({
   };
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        routeAfterSignIn(user.uid).catch(() => {});
+      }
+    });
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const draft = loadStoredBookingDraft();
     if (!draft?.email) return;
 
@@ -77,9 +87,10 @@ export default function SigninClient({
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       await routeAfterSignIn(userCredential.user.uid);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle specific auth errors
-      switch (error.code) {
+      const authError = error as { code?: string; message?: string };
+      switch (authError.code) {
         case 'auth/invalid-email':
           setError("Invalid email address");
           toast.error("Invalid email address");
@@ -105,8 +116,9 @@ export default function SigninClient({
           toast.error("Too many failed attempts. Please try again later");
           break;
         default:
-          setError("Failed to sign in. Please try again.");
-          toast.error("Failed to sign in. Please try again.");
+          const msg = authError.message || "Failed to sign in. Please try again.";
+          setError(msg);
+          toast.error(msg);
       }
     } finally {
       setIsLoading(false);
@@ -144,9 +156,10 @@ export default function SigninClient({
         setShowResetModal(false);
         setResetEmail("");
       }, 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Handle specific auth errors
-      switch (err.code) {
+      const authError = err as { code?: string; message?: string };
+      switch (authError.code) {
         case 'auth/invalid-email':
           setResetStatus("Invalid email address");
           toast.error("Invalid email address");
@@ -160,8 +173,9 @@ export default function SigninClient({
           toast.error("Too many attempts. Please try again later");
           break;
         default:
-          setResetStatus("Failed to send reset email. Please try again.");
-          toast.error("Failed to send reset email. Please try again.");
+          const msg = authError.message || "Failed to send reset email. Please try again.";
+          setResetStatus(msg);
+          toast.error(msg);
       }
     } finally {
       setResetLoading(false);
@@ -184,8 +198,9 @@ export default function SigninClient({
       const message = "Verification email sent. Please check your inbox and spam folder.";
       setVerifyStatus(message);
       toast.success(message);
-    } catch (err: any) {
-      const message = err?.code === "auth/too-many-requests"
+    } catch (err: unknown) {
+      const authError = err as { code?: string };
+      const message = authError?.code === "auth/too-many-requests"
         ? "Too many attempts. Please wait a little before trying again."
         : "We could not resend the verification email right now.";
       setVerifyStatus(message);

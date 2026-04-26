@@ -12,8 +12,8 @@ import {
 import Link from "next/link";
 import { Button } from "./button";
 import { useState, useEffect, useRef } from "react";
-import { auth, db } from "@/lib/supabase";
-import { onAuthStateChanged, signOut } from "@/lib/supabase-auth";
+import { auth, db } from "@/lib/supabase/browser";
+import { onAuthStateChanged, signOut } from "@/lib/supabase/browser";
 import { doc, getDoc } from "@/lib/supabase-db";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -21,11 +21,16 @@ import clsx from "clsx";
 import { getUserFirstName } from "@/lib/userDisplay";
 import { APP_NAME, CONTACT_EMAIL, CONTACT_PHONE } from "@/lib/globalConfig";
 
+type HeaderUserProfile = {
+  firstName?: string;
+  email?: string;
+} & Record<string, unknown>;
+
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [user, setUser] = useState<import('@/lib/supabase/browser').CompatUser | null>(null);
+  const [userProfile, setUserProfile] = useState<HeaderUserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -39,12 +44,12 @@ export function Header() {
   let hireByHourMenuCloseTimer: NodeJS.Timeout;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: import('@/lib/supabase/browser').CompatUser | null) => {
       setUser(user);
       if (user) {
         const userDoc = await getDoc(doc(db, "profiles", user.uid));
         if (userDoc.exists()) {
-          setUserProfile(userDoc.data());
+            setUserProfile((userDoc.data() as HeaderUserProfile) || null);
         } else {
           setUserProfile({
             firstName: getUserFirstName(null, user),
@@ -502,3 +507,5 @@ export function Header() {
     </header>
   );
 }
+
+

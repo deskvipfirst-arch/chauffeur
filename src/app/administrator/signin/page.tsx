@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { auth } from "@/lib/supabase";
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "@/lib/supabase-auth";
+import { auth } from "@/lib/supabase/browser";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "@/lib/supabase/browser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -111,11 +111,12 @@ export default function AdminSignInPage() {
       // Use replace instead of push to prevent back button issues
       window.location.replace("/administrator/dashboard");
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Sign in error:", error);
       
       // Handle specific error cases
-      switch (error.code) {
+      const authError = error as { code?: string; message?: string };
+      switch (authError.code) {
         case 'auth/invalid-email':
           setError("Invalid email address");
           toast.error("Invalid email address");
@@ -141,7 +142,7 @@ export default function AdminSignInPage() {
           toast.error("Too many failed attempts. Please try again later");
           break;
         default:
-          const errorMessage = error.message || "Failed to sign in";
+          const errorMessage = authError.message || "Failed to sign in";
           setError(errorMessage);
           toast.error(errorMessage);
       }
@@ -158,8 +159,9 @@ export default function AdminSignInPage() {
       await sendPasswordResetEmail(auth, resetEmail);
       setShowResetModal(false);
       toast.success("A password reset email has been sent.");
-    } catch (err: any) {
-      setResetStatus(err.message || "Failed to send reset email.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to send reset email.";
+      setResetStatus(message);
     } finally {
       setResetLoading(false);
     }

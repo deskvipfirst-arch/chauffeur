@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { DriverPayment, Driver } from "@/types/admin";
 import { Label } from "../ui/label";
 import Notification from "@/components/ui/notification";
-import { db } from "@/lib/supabase";
+import { db } from "@/lib/supabase/browser";
 import { collection, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "@/lib/supabase-db";
 import { COLLECTIONS } from "@/lib/types";
 
@@ -371,3 +371,4 @@ export default function DriverPaymentsTab({
     </div>
   );
 }
+

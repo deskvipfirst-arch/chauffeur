@@ -50,6 +50,29 @@ This powers:
 
 For sign-up verification and password-reset emails, Supabase Auth still handles delivery. To route those through Resend as well, configure Resend SMTP inside your Supabase Auth email settings.
 
+## Distributed rate limiting (Upstash)
+
+To enable production-safe distributed throttling for invite endpoints, set:
+- UPSTASH_REDIS_REST_URL
+- UPSTASH_REDIS_REST_TOKEN
+
+If these are not set, the app falls back to in-memory rate limiting for local development.
+
+## Invite flow integration test mode
+
+The full invite-flow Playwright test can run without inbox scraping by exposing the generated invite link from the invite API in non-production test mode.
+
+Set:
+- E2E_EXPOSE_INVITE_LINK=true
+- E2E_ADMIN_EMAIL
+- E2E_ADMIN_PASSWORD
+
+Then run:
+
+```bash
+npm run e2e
+```
+
 ## Optional flight provider
 
 Set these values to use a real flight-status source:

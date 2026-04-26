@@ -1,4 +1,4 @@
-import { db, getAccessToken } from "@/lib/supabase";
+import { db, getAccessToken } from "@/lib/supabase/browser";
 import { collection, getDocs, query, orderBy } from "@/lib/supabase-db";
 import { Vehicle, Booking, Driver, DriverPayment, Location, ServicePricing, ExtraCharge, GreeterInvoice, OfficeStaff } from "@/types/admin";
 import { COLLECTIONS } from "@/lib/types";
@@ -9,6 +9,35 @@ type FetchResult<T> = {
   isLoading: boolean;
 };
 
+type VehicleDoc = Record<string, unknown>;
+type DriverPaymentDoc = Record<string, unknown>;
+type LocationDoc = {
+  name?: string;
+  status?: string;
+  isAirport?: boolean;
+  terminals?: string[];
+} & Record<string, unknown>;
+
+const asString = (value: unknown, fallback = "") =>
+  typeof value === "string" ? value : fallback;
+
+const asNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const asBoolean = (value: unknown, fallback = false) =>
+  typeof value === "boolean" ? value : fallback;
+
+const asStringOrNull = (value: unknown) =>
+  typeof value === "string" ? value : null;
+
+const asStringArray = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+const asLocationStatus = (value: unknown): "active" | "inactive" =>
+  value === "inactive" ? "inactive" : "active";
+
 export const fetchVehicles = async (): Promise<FetchResult<Vehicle>> => {
   let isLoading = true;
   try {
@@ -17,24 +46,24 @@ export const fetchVehicles = async (): Promise<FetchResult<Vehicle>> => {
     const snapshot = await getDocs(q);
     
     const data = snapshot.docs.map(doc => {
-      const vehicle = doc.data();
+      const vehicle = doc.data() as VehicleDoc;
       return {
         id: doc.id,
-        title: vehicle.title || vehicle.Title || "",
-        name: vehicle.name || vehicle.Name || "",
-        description: vehicle.description || vehicle.Description || "",
-        passengers: vehicle.passengers || vehicle.Passengers || 1,
-        bags: vehicle.bags || vehicle.Bags || 0,
-        wifi: vehicle.wifi ?? vehicle.Wifi ?? false,
-        meet_greet: vehicle.meet_greet ?? vehicle.meetGreet ?? false,
-        drinks: vehicle.drinks ?? vehicle.Drinks ?? false,
-        waiting_time: vehicle.waiting_time || vehicle.waitingTime || "",
-        base_price: vehicle.base_price || vehicle.basePrice || 0,
-        price_per_hour: vehicle.price_per_hour || vehicle.pricePerHour || 0,
-        image_url: vehicle.image_url || vehicle.imageUrl || "",
-        created_at: vehicle.created_at || vehicle.createdAt,
-        vehicle_status: vehicle.vehicle_status || vehicle.status || "active",
-        daily_rate: vehicle.daily_rate || vehicle.dailyRate || 0
+        title: asString(vehicle.title ?? vehicle.Title),
+        name: asString(vehicle.name ?? vehicle.Name),
+        description: asString(vehicle.description ?? vehicle.Description),
+        passengers: asNumber(vehicle.passengers ?? vehicle.Passengers, 1),
+        bags: asNumber(vehicle.bags ?? vehicle.Bags, 0),
+        wifi: asBoolean(vehicle.wifi ?? vehicle.Wifi),
+        meet_greet: asBoolean(vehicle.meet_greet ?? vehicle.meetGreet),
+        drinks: asBoolean(vehicle.drinks ?? vehicle.Drinks),
+        waiting_time: asString(vehicle.waiting_time ?? vehicle.waitingTime),
+        base_price: asNumber(vehicle.base_price ?? vehicle.basePrice, 0),
+        price_per_hour: asNumber(vehicle.price_per_hour ?? vehicle.pricePerHour, 0),
+        image_url: asString(vehicle.image_url ?? vehicle.imageUrl),
+        created_at: asString(vehicle.created_at ?? vehicle.createdAt),
+        vehicle_status: asString(vehicle.vehicle_status ?? vehicle.status, "active"),
+        daily_rate: asNumber(vehicle.daily_rate ?? vehicle.dailyRate, 0)
       };
     });
     
@@ -149,16 +178,16 @@ export const fetchDriverPayments = async (): Promise<FetchResult<DriverPayment>>
     const q = query(paymentsRef, orderBy("createdAt", "desc"));
     const snapshot = await getDocs(q);
     const data = snapshot.docs.map(doc => {
-      const payment = doc.data();
+      const payment = doc.data() as DriverPaymentDoc;
       return {
         id: doc.id,
-        created_at: payment.createdAt || payment.createdat,
-        driver_id: payment.driverId || payment.driverid,
-        booking_id: payment.bookingId || payment.bookingid,
-        amount: payment.amount || 0,
-        status: payment.status || "pending",
-        payment_date: payment.paymentDate || payment.paymentdate || null,
-        payment_method: payment.paymentMethod || payment.paymentmethod || "bank_transfer",
+        created_at: asString(payment.createdAt ?? payment.createdat),
+        driver_id: asString(payment.driverId ?? payment.driverid),
+        booking_id: asString(payment.bookingId ?? payment.bookingid),
+        amount: asNumber(payment.amount, 0),
+        status: asString(payment.status, "pending"),
+        payment_date: asStringOrNull(payment.paymentDate ?? payment.paymentdate),
+        payment_method: asString(payment.paymentMethod ?? payment.paymentmethod, "bank_transfer"),
       };
     });
     isLoading = false;
@@ -199,12 +228,13 @@ export const fetchLocations = async (): Promise<FetchResult<Location>> => {
   try {
     const locationsRef = collection(db, "locations");
     const snapshot = await getDocs(locationsRef);
+    const getLocationDoc = (input: unknown) => input as LocationDoc;
     const data = snapshot.docs.map((doc, index) => ({
       id: index + 1,
-      name: doc.data().name || "",
-      status: doc.data().status || "active",
-      isAirport: doc.data().isAirport || false,
-      terminals: doc.data().terminals || []
+      name: asString(getLocationDoc(doc.data())?.name),
+      status: asLocationStatus(getLocationDoc(doc.data())?.status),
+      isAirport: asBoolean(getLocationDoc(doc.data())?.isAirport),
+      terminals: asStringArray(getLocationDoc(doc.data())?.terminals)
     }));
     isLoading = false;
     return { data, error: null, isLoading };
@@ -299,3 +329,4 @@ export const fetchOfficeStaff = async (): Promise<FetchResult<OfficeStaff>> => {
     return { data: null, error: err instanceof Error ? err.message : "Failed to load office staff", isLoading };
   }
 };
+

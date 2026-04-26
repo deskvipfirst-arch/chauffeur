@@ -67,8 +67,8 @@ export function PriceEstimator() {
   const [vehicle, setVehicle] = useState<string>("");
   const [pickupLocationId, setPickupLocationId] = useState<string>("");
   const [dropoffLocationId, setDropoffLocationId] = useState<string>("");
-  const [extraCharges, setExtraCharges] = useState<Record<string, any>>({});
-  const [serviceRates, setServiceRates] = useState<Record<string, any>>({});
+  const [extraCharges, setExtraCharges] = useState<Record<string, number>>({});
+  const [serviceRates, setServiceRates] = useState<Record<string, number>>({});
   const [customPickupAddress, setCustomPickupAddress] = useState("");
   const [customDropoffAddress, setCustomDropoffAddress] = useState("");
   const [isPriceEstimationDisabled, setIsPriceEstimationDisabled] = useState(false);
@@ -100,15 +100,15 @@ export function PriceEstimator() {
         setLocations(Array.isArray(locationsResponse) ? locationsResponse : []);
         setVehicles(Array.isArray(vehiclesResponse) ? vehiclesResponse : []);
 
-        const rates: Record<string, any> = {};
+        const rates: Record<string, number> = {};
         for (const rate of serviceRatesResponse) {
-          rates[rate.id] = rate;
+          rates[rate.id] = rate.baseRate ?? 0;
         }
         setServiceRates(rates);
 
-        const charges: Record<string, any> = {};
+        const charges: Record<string, number> = {};
         for (const charge of extraChargesResponse) {
-          charges[charge.id] = charge;
+          charges[charge.id] = charge.amount ?? 0;
         }
         setExtraCharges(charges);
       } catch {
@@ -169,7 +169,7 @@ export function PriceEstimator() {
   );
 
 
-  const calculatePrice = (formData?: any) => {
+  const calculatePrice = (formData?: Partial<Record<string, any>>) => {
     let basePrice = 0;
     let surcharges = 0;
     const breakdown: { description: string; amount: number }[] = [];
@@ -206,31 +206,31 @@ export function PriceEstimator() {
             const pickupTerminal = pickup.name.trim().toLowerCase();
             const dropoffTerminal = dropoff.name.trim().toLowerCase();
             if (pickupTerminal === dropoffTerminal) {
-              basePrice = serviceRates["meet-assist-base"]?.baseRate || 140;
+              basePrice = serviceRates["meet-assist-base"] || 140;
               breakdown.push({ description: "Base Rate (Same Terminal, 2 hours, up to 2 passengers)", amount: basePrice });
             } else {
-              basePrice = serviceRates["meet-assist-connection"]?.baseRate || 180;
+              basePrice = serviceRates["meet-assist-connection"] || 180;
               breakdown.push({ description: "Base Rate (Different Terminals, 2 hours, up to 2 passengers)", amount: basePrice });
             }
           } else {
-            basePrice = serviceRates["meet-assist-base"]?.baseRate || 140;
+            basePrice = serviceRates["meet-assist-base"] || 140;
             breakdown.push({ description: "Base Rate (2 hours, up to 2 passengers)", amount: basePrice });
           }
         } else {
-          basePrice = serviceRates["meet-assist-base"]?.baseRate || 140;
+          basePrice = serviceRates["meet-assist-base"] || 140;
           breakdown.push({ description: "Base Rate (2 hours, up to 2 passengers)", amount: basePrice });
         }
 
         // Apply festive period multiplier to base price if applicable
         if (isFestivePeriod) {
-          const multiplier = extraCharges["festive-multiplier"]?.amount || 2;
+          const multiplier = extraCharges["festive-multiplier"] || 2;
           const festiveCharge = basePrice * (multiplier - 1);
           breakdown.push({ description: `Festive Period Surcharge (${multiplier}x base rate)`, amount: festiveCharge });
           basePrice = basePrice * multiplier;
         }
 
         // Additional hours charge
-        const additionalHourRate = extraCharges["additional-hour"]?.amount || 0;
+        const additionalHourRate = extraCharges["additional-hour"] || 0;
         const additionalHoursCharge = additionalHoursValue * additionalHourRate;
         if (additionalHoursValue > 0) {
           breakdown.push({ description: `Additional Hours (${additionalHoursValue} hours)`, amount: additionalHoursCharge });
@@ -239,7 +239,7 @@ export function PriceEstimator() {
 
         // Additional passengers charge
         if (passengers > 2) {
-          const additionalPassengerRate = extraCharges["additional-passenger"]?.amount || 0;
+          const additionalPassengerRate = extraCharges["additional-passenger"] || 0;
           const additionalPassengers = passengers - 2;
           const additionalPassengersCharge = additionalPassengers * additionalPassengerRate;
           breakdown.push({ description: `Additional Passengers (${additionalPassengers})`, amount: additionalPassengersCharge });
@@ -248,14 +248,14 @@ export function PriceEstimator() {
 
         // Buggy service
         if (wantBuggy) {
-          const buggyRate = extraCharges["buggy-service"]?.amount || 0;
+          const buggyRate = extraCharges["buggy-service"] || 0;
           breakdown.push({ description: "Buggy Service", amount: buggyRate });
           surcharges += buggyRate;
         }
 
         // Porter service
         if (wantPorter && bags) {
-          const porterRate = extraCharges["porter-service"]?.amount || 0;
+          const porterRate = extraCharges["porter-service"] || 0;
           const porterCount = Math.ceil(bags / 8);
           const porterCost = porterCount * porterRate;
           breakdown.push({ description: `Porter Service (${porterCount} porter${porterCount > 1 ? 's' : ''})`, amount: porterCost });
@@ -274,30 +274,30 @@ export function PriceEstimator() {
             
             // Both locations are in the same airport
             if (pickupAirport === dropoffAirport) {
-              basePrice = serviceRates["airport-transfer-base"]?.baseRate || 100;
+               basePrice = serviceRates["airport-transfer-base"] || 100;
               breakdown.push({ description: "Base Rate (Same Airport)", amount: basePrice });
             }
             // Different airports
             else {
-              basePrice = serviceRates["airport-transfer-connection"]?.baseRate || 150;
+               basePrice = serviceRates["airport-transfer-connection"] || 150;
               breakdown.push({ description: "Base Rate (Different Airports)", amount: basePrice });
             }
           }
           // One location is Heathrow and other is custom
           else if ((pickup?.name.toLowerCase().includes("heathrow") || dropoff?.name.toLowerCase().includes("heathrow")) && 
                    (pickupLocationId === "other" || dropoffLocationId === "other")) {
-            basePrice = serviceRates["airport-transfer-lhr"]?.baseRate || 120;
+             basePrice = serviceRates["airport-transfer-lhr"] || 120;
             breakdown.push({ description: "Base Rate (Heathrow to Custom Location)", amount: basePrice });
           }
           // One location is other airport and other is custom
           else if (pickupLocationId === "other" || dropoffLocationId === "other") {
-            basePrice = serviceRates["airport-transfer-other"]?.baseRate || 130;
+             basePrice = serviceRates["airport-transfer-other"] || 130;
             breakdown.push({ description: "Base Rate (Airport to Custom Location)", amount: basePrice });
           }
 
           // Apply festive period multiplier to base price if applicable
           if (isFestivePeriod) {
-            const multiplier = extraCharges["festive-multiplier"]?.amount || 2;
+            const multiplier = extraCharges["festive-multiplier"] || 2;
             const festiveCharge = basePrice * (multiplier - 1);
             breakdown.push({ description: `Festive Period Surcharge (${multiplier}x base rate)`, amount: festiveCharge });
             basePrice = basePrice * multiplier;
@@ -305,7 +305,7 @@ export function PriceEstimator() {
 
           // Additional passengers charge
           if (passengers > 2) {
-            const additionalPassengerRate = extraCharges["additional-passenger"]?.amount || 0;
+            const additionalPassengerRate = extraCharges["additional-passenger"] || 0;
             const additionalPassengers = passengers - 2;
             const additionalPassengersCharge = additionalPassengers * additionalPassengerRate;
             breakdown.push({ description: `Additional Passengers (${additionalPassengers})`, amount: additionalPassengersCharge });
@@ -313,7 +313,7 @@ export function PriceEstimator() {
           }
 
           // Additional hours charge
-          const additionalHourRateAT = extraCharges["additional-hour"]?.amount || 0;
+          const additionalHourRateAT = extraCharges["additional-hour"] || 0;
           const additionalHoursChargeAT = additionalHoursValue * additionalHourRateAT;
           if (additionalHoursValue > 0) {
             breakdown.push({ description: `Additional Hours (${additionalHoursValue} hours)`, amount: additionalHoursChargeAT });
@@ -345,7 +345,7 @@ export function PriceEstimator() {
 
           // Apply festive period multiplier to base price if applicable
           if (isFestivePeriod) {
-            const multiplier = extraCharges["festive-multiplier"]?.amount || 2;
+            const multiplier = extraCharges["festive-multiplier"] || 2;
             const festiveCharge = basePrice * (multiplier - 1);
             breakdown.push({ 
               description: `Festive Period Surcharge (${multiplier}x base rate)`, 
@@ -363,7 +363,7 @@ export function PriceEstimator() {
 
     // Unsocial hours surcharge (applied after festive period but before VAT)
     if (isUnsocialHours) {
-      const unsocialHoursRate = extraCharges["unsocial-hours"]?.amount || 0;
+      const unsocialHoursRate = extraCharges["unsocial-hours"] || 0;
       breakdown.push({ description: "Unsocial Hours Surcharge", amount: unsocialHoursRate });
       surcharges += unsocialHoursRate;
     }
@@ -373,7 +373,7 @@ export function PriceEstimator() {
     breakdown.push({ description: "Total (before VAT)", amount: totalBeforeVat });
 
     // VAT calculation
-    const vatRate = extraCharges["vat-rate"]?.amount/100 || 0.2;
+    const vatRate = extraCharges["vat-rate"]/100 || 0.2;
     const vatAmount = totalBeforeVat * vatRate;
     breakdown.push({ description: `VAT (${(vatRate * 100).toFixed(0)}%)`, amount: vatAmount });
 
@@ -625,3 +625,9 @@ export function PriceEstimator() {
     </Card>
   );
 }
+
+
+
+
+
+

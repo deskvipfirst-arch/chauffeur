@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/supabase";
-import { verifyPasswordResetCode, confirmPasswordReset } from "@/lib/supabase-auth";
+import { auth } from "@/lib/supabase/browser";
+import { verifyPasswordResetCode, confirmPasswordReset } from "@/lib/supabase/browser";
 import Link from "next/link";
 
 function ResetPasswordPageContent() {
@@ -50,8 +50,9 @@ function ResetPasswordPageContent() {
     try {
       await confirmPasswordReset(auth, oobCode, newPassword);
       setStatus("Your password has been reset. You can now sign in.");
-    } catch (err: any) {
-      setError(err.message || "Failed to reset password.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to reset password.";
+      setError(message);
     } finally {
       setIsResetting(false);
     }

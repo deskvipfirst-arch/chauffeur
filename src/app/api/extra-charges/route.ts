@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getExtraCharges } from "@/lib/supabase-admin";
+import { getExtraCharges } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBooking, getDriverById, getOfficeNotificationEmailSetting, requireAuthorizedUser, updateBooking } from "@/lib/supabase-admin";
+import { getBooking, getDriverById, getOfficeNotificationEmailSetting, requireAuthorizedUser, updateBooking } from "@/lib/supabase/admin";
 import {
   buildGreeterAssignmentEmail,
   buildPassengerGreeterAssignmentEmail,

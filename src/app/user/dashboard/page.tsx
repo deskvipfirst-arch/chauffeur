@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, isAfter, subHours } from "date-fns";
 import { toast } from "sonner";
-import { auth, db } from "@/lib/supabase";
+import { auth, db } from "@/lib/supabase/browser";
 import {
   collection,
   doc,
@@ -16,7 +16,7 @@ import {
   updateDoc,
   where,
 } from "@/lib/supabase-db";
-import { onAuthStateChanged } from "@/lib/supabase-auth";
+import { onAuthStateChanged } from "@/lib/supabase/browser";
 import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/lib/userDisplay";
 import type { Booking } from "@/types/admin";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,14 @@ type GreeterInfo = {
   status: string;
 };
 
+type DashboardUserProfile = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+} & Record<string, unknown>;
+
 const canModifyBooking = (bookingDate: string) => {
   const serviceDateTime = new Date(bookingDate);
   const cutoff = subHours(serviceDateTime, 24);
@@ -111,8 +119,8 @@ function getStatusBadge(booking: Booking) {
 }
 
 export default function CustomerDashboard() {
-  const [user, setUser] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [user, setUser] = useState<import('@/lib/supabase/browser').CompatUser | null>(null);
+  const [userProfile, setUserProfile] = useState<DashboardUserProfile | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +169,7 @@ export default function CustomerDashboard() {
         };
 
         if (profileDoc.exists()) {
-          setUserProfile({ ...fallbackProfile, ...profileDoc.data() });
+          setUserProfile({ ...fallbackProfile, ...(profileDoc.data() as DashboardUserProfile) });
         } else {
           setUserProfile(fallbackProfile);
           try {
@@ -173,7 +181,7 @@ export default function CustomerDashboard() {
 
         const bookingsData = querySnapshot.docs.map((item) => ({
           id: item.id,
-          ...item.data(),
+          ...(item.data() as object),
         })) as Booking[];
 
         setBookings(bookingsData);
@@ -661,3 +669,6 @@ export default function CustomerDashboard() {
     </div>
   );
 }
+
+
+

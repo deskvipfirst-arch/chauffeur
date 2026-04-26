@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuthorizedUser, reviewGreeterInvoice } from "@/lib/supabase-admin";
+import { requireAuthorizedUser, reviewGreeterInvoice } from "@/lib/supabase/admin";
 
 const allowedStatuses = new Set(["under_review", "queried", "approved", "rejected", "paid", "unpaid"]);
 const noteRequiredStatuses = new Set(["queried", "rejected", "unpaid"]);

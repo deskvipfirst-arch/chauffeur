@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canonicalizeUserRole, isAllowedRole } from "./roles";
-import { shouldDropBookingUserId } from "./supabase-admin";
+import { shouldDropBookingUserId } from "./supabase/admin";
 
 describe("admin role compatibility", () => {
   it("maps legacy driver-style roles to greeter access", () => {
@@ -22,3 +22,4 @@ describe("admin role compatibility", () => {
     expect(shouldDropBookingUserId({ code: "23503", message: "other constraint" })).toBe(false);
   });
 });
+

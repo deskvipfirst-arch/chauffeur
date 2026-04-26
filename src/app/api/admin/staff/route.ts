@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { COLLECTIONS } from "@/lib/types";
 import { canonicalizeUserRole } from "@/lib/roles";
-import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase-admin";
+import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {

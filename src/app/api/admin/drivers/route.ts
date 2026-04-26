@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDrivers, requireAuthorizedUser } from "@/lib/supabase-admin";
+import { getDrivers, requireAuthorizedUser } from "@/lib/supabase/admin";
 
 export async function GET(request: NextRequest) {
   try {

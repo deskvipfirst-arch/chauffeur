@@ -2,7 +2,7 @@ export const runtime = "nodejs";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { adminDb } from "@/lib/supabase-admin";
+import { adminDb } from "@/lib/supabase/admin";
 import {
   buildBookingConfirmationEmail,
   buildOfficeBookingNotificationEmail,
@@ -15,7 +15,7 @@ import {
   isLegacyBookingStatusConstraintError,
   isStripeSessionPaid,
 } from "@/lib/stripePaymentStatus";
-import { getOfficeNotificationEmailSetting } from "@/lib/supabase-admin";
+import { getOfficeNotificationEmailSetting } from "@/lib/supabase/admin";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;

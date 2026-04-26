@@ -42,12 +42,17 @@ export function buildFallbackFlightStatus(flightNumber: string): FlightStatusInf
   };
 }
 
-export function parseFlightStatusResponse(payload: any, fallbackFlightNumber?: string): FlightStatusInfo | null {
-  const row = Array.isArray(payload?.data)
-    ? payload.data[0]
-    : Array.isArray(payload)
-      ? payload[0]
-      : payload?.data || payload;
+export function parseFlightStatusResponse(payload: unknown, fallbackFlightNumber?: string): FlightStatusInfo | null {
+  const payloadObj = payload as { data?: Array<Record<string, any>> } | Array<Record<string, any>> | Record<string, any>;
+  let row: Record<string, any> | undefined;
+  
+  if (Array.isArray(payloadObj)) {
+    row = payloadObj[0];
+  } else if (typeof payloadObj === 'object' && payloadObj !== null && 'data' in payloadObj && Array.isArray((payloadObj as any).data)) {
+    row = (payloadObj as any).data[0];
+  } else if (typeof payloadObj === 'object' && payloadObj !== null) {
+    row = payloadObj as Record<string, any>;
+  }
 
   if (!row) return null;
 

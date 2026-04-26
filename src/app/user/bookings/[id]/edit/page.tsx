@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc } from "@/lib/supabase-db";
-import { db } from "@/lib/supabase";
+import { db } from "@/lib/supabase/browser";
 import { Booking } from "@/types/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

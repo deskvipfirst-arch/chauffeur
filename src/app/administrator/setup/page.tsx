@@ -23,9 +23,10 @@ export default function SetupAdminPage() {
       await createFirstAdminUser(email, password);
       toast.success("First admin user created successfully");
       router.push("/administrator/signin");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating first admin:", error);
-      toast.error(error.message || "Failed to create first admin user");
+      const message = error instanceof Error ? error.message : "Failed to create first admin user";
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }

@@ -1,12 +1,27 @@
 import { NextResponse } from "next/server";
 
+import { apiErrorResponse } from "@/lib/api/errors";
+import { getRequestIp, rateLimitByKey } from "@/lib/api/rate-limit";
 import { buildStaffInvitationEmail, sendTransactionalEmail } from "@/lib/email";
 import { canonicalizeUserRole } from "@/lib/roles";
-import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase-admin";
+import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase/admin";
 import { COLLECTIONS } from "@/lib/types";
-import { getAppBaseUrl, normalizeInviteUrl } from "@/lib/url-helper";
+import { buildInviteCallbackUrl, extractTokensFromInviteUrl, getBaseUrl } from "@/lib/url";
 
 export const runtime = "nodejs";
+
+const INVITE_ACTION_MAX_REQUESTS_PER_MINUTE = 12;
+
+type UserRecordLike = {
+  user_metadata?: Record<string, unknown>;
+  last_sign_in_at?: string | null;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
+};
+
+function logInviteAction(event: string, details: Record<string, unknown>) {
+  console.info("[invite-flow]", event, details);
+}
 
 async function findAuthUserById(userId: string) {
   const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -17,13 +32,13 @@ async function findAuthUserById(userId: string) {
   return data.users.find((user) => user.id === userId) || null;
 }
 
-function getStaffRole(user: any) {
+function getStaffRole(user: UserRecordLike) {
   const metadata = (user?.user_metadata || {}) as Record<string, unknown>;
   return canonicalizeUserRole(String(metadata.role || ""));
 }
 
-function isPendingInvite(user: any) {
-  return !((user as any)?.last_sign_in_at || (user as any)?.email_confirmed_at || (user as any)?.confirmed_at);
+function isPendingInvite(user: UserRecordLike) {
+  return !(user.last_sign_in_at || user.email_confirmed_at || user.confirmed_at);
 }
 
 function getInviteDestination(role: string) {
@@ -51,8 +66,16 @@ async function resendStaffInvitation(request: Request, userId: string) {
 
   const email = String(user.email || "").trim().toLowerCase();
   const finalDestination = getInviteDestination(role);
-  const baseUrl = getAppBaseUrl(request);
-  const redirectTo = `${baseUrl}/auth/callback?next=${encodeURIComponent(finalDestination)}`;
+  const baseUrl = getBaseUrl(request);
+  const redirectTo = `${baseUrl}/auth/callback`;
+
+  logInviteAction("resend-start", {
+    userId,
+    email,
+    role,
+    destination: finalDestination,
+    sourceIp: getRequestIp(request),
+  });
 
   if (/\.supabase\.co/i.test(redirectTo)) {
     return NextResponse.json(
@@ -80,7 +103,11 @@ async function resendStaffInvitation(request: Request, userId: string) {
 
   const metadata = (user.user_metadata || {}) as Record<string, unknown>;
   const fullName = String(metadata.full_name || metadata.display_name || metadata.displayName || "").trim();
-  const inviteLink = normalizeInviteUrl(generated.data.properties.action_link, baseUrl, finalDestination);
+  const extractedTokens = extractTokensFromInviteUrl(generated.data.properties.action_link);
+  const hasNormalizedTokens = Boolean(extractedTokens.code || extractedTokens.accessToken || extractedTokens.tokenHash);
+  const inviteLink = hasNormalizedTokens
+    ? buildInviteCallbackUrl(baseUrl, extractedTokens, finalDestination)
+    : generated.data.properties.action_link;
 
   logInviteLinkWarning("invite-link-regenerated", {
     email,
@@ -112,6 +139,12 @@ async function resendStaffInvitation(request: Request, userId: string) {
     subject: invitationEmail.subject,
     html: invitationEmail.html,
     text: invitationEmail.text,
+  });
+
+  logInviteAction("resend-success", {
+    userId,
+    email,
+    role,
   });
 
   return NextResponse.json({ success: true, message: "Invitation resent successfully" });
@@ -150,26 +183,60 @@ async function revokeStaffInvitation(userId: string) {
 
 export async function POST(request: Request, context: { params: Promise<{ userId: string }> }) {
   try {
+    const sourceIp = getRequestIp(request);
+    const limit = await rateLimitByKey(`staff-invite-resend:${sourceIp}`, INVITE_ACTION_MAX_REQUESTS_PER_MINUTE, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many invite actions. Please wait and try again." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSeconds) },
+        }
+      );
+    }
+
     await requireAuthorizedUser(request.headers.get("authorization"), ["admin"]);
     const { userId } = await context.params;
 
     return await resendStaffInvitation(request, userId);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to resend invitation";
-    const status = message === "Forbidden" ? 403 : message.includes("authorization") ? 401 : 500;
-    return NextResponse.json({ error: message }, { status });
+    console.error("[invite-flow] resend-error", error);
+    return apiErrorResponse(error, "Failed to resend invitation");
   }
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ userId: string }> }) {
   try {
+    const sourceIp = getRequestIp(request);
+    const limit = await rateLimitByKey(`staff-invite-revoke:${sourceIp}`, INVITE_ACTION_MAX_REQUESTS_PER_MINUTE, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: "Too many invite actions. Please wait and try again." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfterSeconds) },
+        }
+      );
+    }
+
     await requireAuthorizedUser(request.headers.get("authorization"), ["admin"]);
     const { userId } = await context.params;
 
-    return await revokeStaffInvitation(userId);
+    logInviteAction("revoke-start", {
+      userId,
+      sourceIp,
+    });
+
+    const response = await revokeStaffInvitation(userId);
+
+    logInviteAction("revoke-success", {
+      userId,
+      sourceIp,
+    });
+
+    return response;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to revoke invitation";
-    const status = message === "Forbidden" ? 403 : message.includes("authorization") ? 401 : 500;
-    return NextResponse.json({ error: message }, { status });
+    console.error("[invite-flow] revoke-error", error);
+    return apiErrorResponse(error, "Failed to revoke invitation");
   }
 }

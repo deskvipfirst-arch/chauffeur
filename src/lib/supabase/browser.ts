@@ -1,9 +1,93 @@
-import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import { auth, db, getCurrentUser, setCachedUser, supabaseClient, toCompatUser, type CompatUser } from "@/lib/supabase/client";
+import { createClient, type AuthChangeEvent, type Session, type User as SupabaseUser } from "@supabase/supabase-js";
 import { doc, setDoc } from "@/lib/supabase-db";
 
-function normalizeAuthError(error: any) {
-  const message = String(error?.message || "Authentication failed");
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
+
+export const isSupabaseConfigured = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
+
+export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: typeof window !== "undefined",
+    autoRefreshToken: typeof window !== "undefined",
+    detectSessionInUrl: true,
+  },
+});
+
+export type CompatUser = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  role?: string | null;
+  getIdToken: () => Promise<string>;
+};
+
+let cachedUser: CompatUser | null = null;
+
+export async function getAccessToken(): Promise<string> {
+  const { data } = await supabaseClient.auth.getSession();
+  return data.session?.access_token || "";
+}
+
+export function toCompatUser(user: SupabaseUser | null): CompatUser | null {
+  if (!user) return null;
+
+  return {
+    uid: user.id,
+    email: user.email ?? null,
+    displayName:
+      user.user_metadata?.displayName ||
+      user.user_metadata?.display_name ||
+      user.user_metadata?.full_name ||
+      null,
+    photoURL: user.user_metadata?.avatar_url || null,
+    role: typeof user.user_metadata?.role === "string" ? user.user_metadata.role : null,
+    getIdToken: getAccessToken,
+  };
+}
+
+export function setCachedUser(user: SupabaseUser | null) {
+  cachedUser = toCompatUser(user);
+  return cachedUser;
+}
+
+export async function getCurrentUser(): Promise<CompatUser | null> {
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+
+  return setCachedUser(user);
+}
+
+export const auth = {
+  get currentUser() {
+    return cachedUser;
+  },
+  async signOut() {
+    cachedUser = null;
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) throw error;
+  },
+};
+
+if (typeof window !== "undefined") {
+  void getCurrentUser();
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    setCachedUser(session?.user ?? null);
+  });
+}
+
+export const db = supabaseClient;
+export const storage = supabaseClient.storage;
+
+export const supabase = supabaseClient;
+
+function normalizeAuthError(error: unknown) {
+  const errorObj = error as { message?: string; code?: string };
+  const message = String(errorObj?.message || "Authentication failed");
   const code = (() => {
     const lower = message.toLowerCase();
 
@@ -22,10 +106,13 @@ function normalizeAuthError(error: any) {
     if (lower.includes("rate limit") || lower.includes("too many")) {
       return "auth/too-many-requests";
     }
-    return error?.code || "auth/unknown";
+    return errorObj?.code || "auth/unknown";
   })();
 
-  return { ...error, code, message };
+  const errorDetails = (typeof error === "object" && error !== null)
+    ? (error as Record<string, unknown>)
+    : {};
+  return { ...errorDetails, code, message };
 }
 
 export class GoogleAuthProvider {
@@ -125,7 +212,7 @@ export async function syncUserProfile(
   return true;
 }
 
-export async function updateProfile(_user: any, profile: { displayName?: string; photoURL?: string | null }) {
+export async function updateProfile(_user: CompatUser | null, profile: { displayName?: string; photoURL?: string | null }) {
   const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) {
     return;
@@ -143,7 +230,7 @@ export async function updateProfile(_user: any, profile: { displayName?: string;
   if (error) throw normalizeAuthError(error);
 }
 
-export function onAuthStateChanged(_auth: typeof auth, callback: (user: any) => void) {
+export function onAuthStateChanged(_auth: typeof auth, callback: (user: CompatUser | null) => void) {
   void getCurrentUser().then(callback);
 
   const { data } = supabaseClient.auth.onAuthStateChange(

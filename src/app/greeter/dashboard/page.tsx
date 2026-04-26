@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, getAccessToken } from "@/lib/supabase";
-import { onAuthStateChanged } from "@/lib/supabase-auth";
+import { auth, getAccessToken } from "@/lib/supabase/browser";
+import { onAuthStateChanged } from "@/lib/supabase/browser";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,11 +18,30 @@ import { buildUnauthorizedNotification } from "@/lib/notifications";
 import { getPrimaryFlightNumber } from "@/lib/flightStatus";
 import { canGreeterSubmitInvoice, getInvoiceStatusLabel } from "@/lib/invoiceWorkflow";
 import type { GreeterInvoice } from "@/types/admin";
+import type { CompatUser } from "@/lib/supabase/browser";
+
+type GreeterJob = {
+  id: string;
+  booking_ref?: string;
+  full_name?: string;
+  service_type?: string;
+  pickup_location?: string;
+  dropoff_location?: string | null;
+  date_time?: string;
+  passengers?: number;
+  amount?: number | string;
+  status?: string;
+  driver_status?: string;
+  flight_number_arrival?: string | null;
+  flight_number_departure?: string | null;
+  arrival_flight?: string | null;
+  departure_flight?: string | null;
+} & Record<string, unknown>;
 
 export default function GreeterDashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [user, setUser] = useState<CompatUser | null>(null);
+  const [jobs, setJobs] = useState<GreeterJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
@@ -44,7 +63,7 @@ export default function GreeterDashboardPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       const payload = response.ok ? await response.json() : [];
-      setJobs(Array.isArray(payload) ? payload : []);
+      setJobs(Array.isArray(payload) ? (payload as GreeterJob[]) : []);
     } catch {
       setJobs([]);
     } finally {
@@ -169,7 +188,7 @@ export default function GreeterDashboardPage() {
     }
   };
 
-  const handleSubmitInvoice = async (job: any) => {
+  const handleSubmitInvoice = async (job: GreeterJob) => {
     if (!user?.email) return;
 
     const draft = invoiceDrafts[job.id] || {
@@ -267,7 +286,7 @@ export default function GreeterDashboardPage() {
                     <p><span className="font-semibold">Service:</span> {job.service_type}</p>
                     <p><span className="font-semibold">Pickup:</span> {job.pickup_location}</p>
                     <p><span className="font-semibold">Dropoff:</span> {job.dropoff_location || "N/A"}</p>
-                    <p><span className="font-semibold">When:</span> {new Date(job.date_time).toLocaleString()}</p>
+                    <p><span className="font-semibold">When:</span> {job.date_time ? new Date(job.date_time).toLocaleString() : "TBC"}</p>
                     <p><span className="font-semibold">Passenger count:</span> {job.passengers || 1}</p>
                     {(() => {
                       const flight = getPrimaryFlightNumber(job);
@@ -363,3 +382,4 @@ export default function GreeterDashboardPage() {
     </div>
   );
 }
+

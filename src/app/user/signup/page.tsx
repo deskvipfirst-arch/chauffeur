@@ -8,8 +8,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
-import { createUserWithEmailAndPassword, syncUserProfile, updateProfile } from "@/lib/supabase-auth";
-import { auth } from "@/lib/supabase";
+import { createUserWithEmailAndPassword, syncUserProfile, updateProfile } from "@/lib/supabase/browser";
+import { auth } from "@/lib/supabase/browser";
 import { getSignupErrorMessage, loadStoredBookingDraft, saveStoredBookingDraft, splitFullName } from "@/lib/bookingFlow";
 
 function SignUpContent() {
@@ -119,7 +119,7 @@ function SignUpContent() {
             ? "/user/signin?from=booking&message=account_created"
             : "/user/signin?message=account_created"
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error signing up:", err);
       const message = getSignupErrorMessage(err);
       setError(message);

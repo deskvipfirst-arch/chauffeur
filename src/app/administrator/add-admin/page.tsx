@@ -6,9 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { isAdminUser } from "@/lib/adminUtils";
-import { auth, getAccessToken } from "@/lib/supabase";
-import { onAuthStateChanged } from "@/lib/supabase-auth";
+import { getAccessToken, supabase } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -54,8 +52,9 @@ export default function AddAdminPage() {
       }
 
       setPendingInvitations(Array.isArray(result) ? result : []);
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to load pending invitations");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to load pending invitations";
+      toast.error(message);
       setPendingInvitations([]);
     } finally {
       setLoadingInvitations(false);
@@ -63,14 +62,18 @@ export default function AddAdminPage() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+    const checkAuth = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
         router.push("/administrator/signin");
         return;
       }
 
-      const isAdmin = await isAdminUser(user.uid);
-      if (!isAdmin) {
+      const role = session.user.user_metadata?.role;
+      if (role !== "admin") {
         toast.error("Unauthorized access");
         router.push("/administrator/signin");
         return;
@@ -78,9 +81,9 @@ export default function AddAdminPage() {
 
       setIsAuthorized(true);
       await loadPendingInvitations();
-    });
+    };
 
-    return () => unsubscribe();
+    void checkAuth();
   }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,9 +125,10 @@ export default function AddAdminPage() {
       setPhone("");
       setRole("greeter");
       await loadPendingInvitations();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error inviting staff member:", error);
-      toast.error(error.message || "Failed to invite staff member");
+      const message = error instanceof Error ? error.message : "Failed to invite staff member";
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -146,8 +150,9 @@ export default function AddAdminPage() {
 
       toast.success(result?.message || `Invitation resent to ${invitation.email}`);
       await loadPendingInvitations();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to resend invitation");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to resend invitation";
+      toast.error(message);
     } finally {
       setActiveInvitationAction(null);
     }
@@ -169,8 +174,9 @@ export default function AddAdminPage() {
 
       toast.success(result?.message || `Invitation revoked for ${invitation.email}`);
       await loadPendingInvitations();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to revoke invitation");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to revoke invitation";
+      toast.error(message);
     } finally {
       setActiveInvitationAction(null);
     }
@@ -291,3 +297,4 @@ export default function AddAdminPage() {
     </div>
   );
 }
+

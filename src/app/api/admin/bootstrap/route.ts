@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createUserProfile, getUserProfile, requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase-admin";
+import { createUserProfile, getUserProfile, requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase/admin";
 import { canonicalizeUserRole } from "@/lib/roles";
 
 export const runtime = "nodejs";

@@ -5,7 +5,7 @@ import {
   getOfficeNotificationRecipients,
   sendTransactionalEmail,
 } from "@/lib/email";
-import { getOfficeNotificationEmailSetting } from "@/lib/supabase-admin";
+import { getOfficeNotificationEmailSetting } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 

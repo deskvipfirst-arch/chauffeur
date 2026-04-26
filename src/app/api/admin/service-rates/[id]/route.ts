@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateServiceRate } from "@/lib/supabase-admin";
+import { updateServiceRate } from "@/lib/supabase/admin";
 
 export async function PUT(
   request: NextRequest,

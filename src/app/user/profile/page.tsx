@@ -1,14 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db, getCurrentUser } from "@/lib/supabase";
+import { db, getCurrentUser } from "@/lib/supabase/browser";
 import { doc, getDoc, setDoc } from "@/lib/supabase-db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icons } from "@/components/ui/icons";
-import { updateProfile } from "@/lib/supabase-auth";
+import { updateProfile } from "@/lib/supabase/browser";
 import { getUserDisplayName, getUserFirstName } from "@/lib/userDisplay";
 
 interface UserProfile {
@@ -53,7 +53,7 @@ export default function ProfilePage() {
         const fallbackLastName = nameParts.slice(1).join(" ");
 
         if (profileDoc.exists()) {
-          const data = profileDoc.data() as UserProfile;
+          const data = profileDoc.data() as Partial<UserProfile>;
           setFormData({
             firstName: data.firstName || fallbackFirstName,
             lastName: data.lastName || fallbackLastName,
@@ -218,3 +218,4 @@ export default function ProfilePage() {
     </div>
   );
 } 
+

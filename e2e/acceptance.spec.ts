@@ -145,4 +145,63 @@ test.describe("live credential checks", () => {
     await expect(page).toHaveURL(/greeter\/dashboard/, { timeout: 20_000 });
     await expect(page.getByText(/greeter dashboard|assigned jobs|no assigned jobs/i).first()).toBeVisible();
   });
+
+  test("staff invite flow covers callback session and password setup", async ({ page }) => {
+    test.skip(
+      !adminEmail || !adminPassword || process.env.E2E_EXPOSE_INVITE_LINK !== "true",
+      "Set E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD, and E2E_EXPOSE_INVITE_LINK=true to run invite flow integration."
+    );
+
+    const inviteeEmail = `invite.greeter.${Date.now()}@example.com`;
+    const inviteePassword = `E2E!Invite${Date.now()}`;
+    let inviteLink: string | null = null;
+    let inviteResponseStatus: number | null = null;
+
+    page.on("response", async (response) => {
+      if (response.request().method() !== "POST") return;
+      if (!response.url().includes("/api/admin/staff/invite")) return;
+
+      inviteResponseStatus = response.status();
+      const payload = await response.json().catch(() => null);
+      if (typeof payload?.inviteLink === "string") {
+        inviteLink = payload.inviteLink;
+      }
+    });
+
+    await page.goto("/administrator/signin");
+    await page.getByPlaceholder("Email").first().fill(adminEmail!);
+    await page.getByPlaceholder("Password").fill(adminPassword!);
+    await page.getByRole("button", { name: /sign in/i }).click();
+    await expect(page).toHaveURL(/administrator\/dashboard/, { timeout: 20_000 });
+
+    await page.goto("/administrator/add-admin");
+    await page.getByPlaceholder("First name").fill("Invite");
+    await page.getByPlaceholder("Last name").fill("Greeter");
+    await page.getByPlaceholder("Email").fill(inviteeEmail);
+    await page.getByPlaceholder("Phone number").fill("07123456789");
+    await page.locator("#staff-role").selectOption("greeter");
+    await page.getByRole("button", { name: /invite staff member/i }).click();
+
+    await expect.poll(() => inviteResponseStatus, { timeout: 15_000, message: "Expected invite API response" }).toBe(200);
+    await expect
+      .poll(() => inviteLink, { timeout: 15_000, message: "Expected invite link from test-only invite API response" })
+      .not.toBeNull();
+
+    await page.goto(inviteLink!);
+    await expect(page).toHaveURL(/auth\/set-password/, { timeout: 20_000 });
+
+    await page.getByPlaceholder(/at least 8 characters/i).fill(inviteePassword);
+    await page.getByPlaceholder(/repeat your password/i).fill(inviteePassword);
+    await page.getByRole("button", { name: /set password/i }).click();
+
+    await expect(page.getByText(/password set successfully/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/greeter\/signin/, { timeout: 20_000 });
+
+    await page.getByPlaceholder("Email").first().fill(inviteeEmail);
+    await page.getByPlaceholder("Password").fill(inviteePassword);
+    await page.getByRole("button", { name: /sign in/i }).click();
+
+    await page.goto("/greeter/dashboard");
+    await expect(page).toHaveURL(/greeter\/dashboard/, { timeout: 20_000 });
+  });
 });

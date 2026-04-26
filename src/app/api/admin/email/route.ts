@@ -9,7 +9,7 @@ import {
   getOfficeNotificationEmailSetting,
   requireAuthorizedUser,
   setOfficeNotificationEmailSetting,
-} from "@/lib/supabase-admin";
+} from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 

@@ -1,14 +1,37 @@
-import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { ExtraCharge, Location, ServiceRate, Vehicle, BookingData, UserData } from "./types";
-import { COLLECTIONS } from "./types";
-import { normalizeDbRow, sanitizeMutationPayload } from "./supabase-db";
-import { canonicalizeUserRole, isAllowedRole } from "./roles";
+import { createClient } from "@supabase/supabase-js";
+import type { ExtraCharge, Location, ServiceRate, Vehicle, BookingData, UserData } from "@/lib/types";
+import { COLLECTIONS } from "@/lib/types";
+import { normalizeDbRow, sanitizeMutationPayload } from "@/lib/supabase-db";
+import { canonicalizeUserRole, isAllowedRole } from "@/lib/roles";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+const serviceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "placeholder-service-role-key";
 
 const GREETER_INVOICES_TABLE = "greeter_invoices";
 const APP_SETTINGS_TABLE = "app_settings";
 const OFFICE_NOTIFICATION_EMAIL_KEY = "office_notification_email";
 
-export const supabaseAdmin = createServiceRoleClient();
+type DbRow = Record<string, unknown>;
+type DynamicBuilder = {
+  eq: (field: string, value: unknown) => DynamicBuilder;
+  neq: (field: string, value: unknown) => DynamicBuilder;
+  order: (field: string, options: { ascending: boolean }) => DynamicBuilder;
+  then: <TResult1 = { data: DbRow[] | null; error: { code?: string; message?: string; details?: string } | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: DbRow[] | null; error: { code?: string; message?: string; details?: string } | null }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ) => PromiseLike<TResult1 | TResult2>;
+};
+
+export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
 
 function getBearerToken(authHeader: string | null) {
   if (!authHeader) return "";
@@ -19,7 +42,7 @@ function getBearerToken(authHeader: string | null) {
   return token.trim();
 }
 
-function createSnapshot(rows: any[]) {
+function createSnapshot(rows: DbRow[]) {
   const docs = rows.map((row) => ({
     id: String(row.id ?? ""),
     data: () => row,
@@ -136,12 +159,8 @@ async function setAppSetting(key: string, value: string) {
   };
 
   try {
-    const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
-      await supabaseAdmin.from(APP_SETTINGS_TABLE).upsert(nextPayload, { onConflict: "key" })
-    );
-    if (error) {
-      throw error;
-    }
+    const { error } = await supabaseAdmin.from(APP_SETTINGS_TABLE).upsert(payload, { onConflict: "key" });
+    if (error) throw error;
   } catch (error) {
     if (!isMissingTableError(error as { code?: string; message?: string; details?: string } | null)) {
       throw error;
@@ -154,9 +173,9 @@ async function setAppSetting(key: string, value: string) {
       description: value,
     });
 
-    const { error: legacyError } = await runMutationWithSchemaFallback(legacyPayload, async (nextPayload) =>
-      await supabaseAdmin.from(COLLECTIONS.SERVICE_RATES).upsert(nextPayload, { onConflict: "id" })
-    );
+    const { error: legacyError } = await supabaseAdmin
+      .from(COLLECTIONS.SERVICE_RATES)
+      .upsert(legacyPayload, { onConflict: "id" });
 
     if (legacyError) {
       throw legacyError;
@@ -166,35 +185,10 @@ async function setAppSetting(key: string, value: string) {
   return value;
 }
 
-async function runMutationWithSchemaFallback<T>(
-  payload: Record<string, any>,
-  action: (nextPayload: Record<string, any>) => Promise<{ data?: T | null; error: any }>
-) {
-  let nextPayload = { ...payload };
-
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const result = await action(nextPayload);
-
-    if (!result.error) {
-      return result;
-    }
-
-    const missingColumn = extractMissingColumn(result.error);
-    if (missingColumn && missingColumn in nextPayload) {
-      delete nextPayload[missingColumn];
-      continue;
-    }
-
-    throw result.error;
-  }
-
-  throw new Error("Failed to apply mutation with the available schema.");
-}
-
 export const adminDb = {
   collection(table: string) {
     return {
-      async add(data: Record<string, any>) {
+      async add(data: DbRow) {
         let payload = sanitizeMutationPayload({ ...data });
 
         if (table === COLLECTIONS.BOOKINGS && payload.user_id) {
@@ -208,16 +202,12 @@ export const adminDb = {
           }
         }
 
-        for (let attempt = 0; attempt < 8; attempt++) {
-          const { data: inserted, error } = await runMutationWithSchemaFallback<any>(payload, async (nextPayload) =>
-            await supabaseAdmin.from(table).insert(nextPayload).select("*").single()
-          );
-
-          if (!error) {
-            return inserted;
-          }
-
-          if (table === COLLECTIONS.BOOKINGS && shouldDropBookingUserId(error) && payload.user_id) {
+        try {
+          const { data: inserted, error } = await supabaseAdmin.from(table).insert(payload).select("*").single();
+          if (error) throw error;
+          return inserted;
+        } catch (error) {
+          if (table === COLLECTIONS.BOOKINGS && shouldDropBookingUserId(error as { code?: string; message?: string; details?: string } | null) && payload.user_id) {
             try {
               const createdUserRecord = await ensurePublicUserRecord(String(payload.user_id), {
                 email: String(payload.email ?? ""),
@@ -231,28 +221,29 @@ export const adminDb = {
               console.warn("Retrying booking without linked user record:", userError);
               delete payload.user_id;
             }
-            continue;
+
+            const { data: retriedInsert, error: retryError } = await supabaseAdmin
+              .from(table)
+              .insert(payload)
+              .select("*")
+              .single();
+            if (retryError) throw retryError;
+            return retriedInsert;
           }
 
           throw error;
         }
-
-        throw new Error("Failed to create booking with the available schema");
       },
       doc(id: string) {
         return {
-          async set(data: Record<string, any>) {
+          async set(data: DbRow) {
             const payload = sanitizeMutationPayload({ id, ...data });
-            const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
-              await supabaseAdmin.from(table).upsert(nextPayload)
-            );
+            const { error } = await supabaseAdmin.from(table).upsert(payload);
             if (error) throw error;
           },
-          async update(data: Record<string, any>) {
+          async update(data: DbRow) {
             const payload = sanitizeMutationPayload(data);
-            const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
-              await supabaseAdmin.from(table).update(nextPayload).eq("id", id)
-            );
+            const { error } = await supabaseAdmin.from(table).update(payload).eq("id", id);
             if (error) throw error;
           },
           async delete() {
@@ -270,10 +261,10 @@ export const adminDb = {
           },
         };
       },
-      where(field: string, op: string, value: any) {
+      where(field: string, op: string, value: unknown) {
         return {
           async get() {
-            let builder: any = supabaseAdmin.from(table).select("*");
+            let builder = supabaseAdmin.from(table).select("*") as unknown as DynamicBuilder;
             if (op === "==") builder = builder.eq(field, value);
             else if (op === "!=") builder = builder.neq(field, value);
             else builder = builder.eq(field, value);
@@ -295,7 +286,7 @@ export async function getLocations(): Promise<Location[]> {
     .eq("status", "active");
 
   if (error) throw error;
-  return (data || []).map((row: any) => ({ id: String(row.id), ...normalizeDbRow(row) })) as Location[];
+  return (data || []).map((row: DbRow) => ({ id: String(row.id), ...normalizeDbRow(row) })) as Location[];
 }
 
 export async function updateLocation(id: string, data: Partial<Location>): Promise<Location> {
@@ -317,15 +308,15 @@ export async function deleteLocation(id: string): Promise<void> {
 
 export async function getServiceRates(): Promise<ServiceRate[]> {
   const rows = await selectAllOrEmpty(COLLECTIONS.SERVICE_RATES);
-  return rows.map((row: any) => ({ id: String(row.id), ...normalizeDbRow(row) })) as ServiceRate[];
+  return rows.map((row: DbRow) => ({ id: String(row.id), ...normalizeDbRow(row) })) as ServiceRate[];
 }
 
 export async function getExtraCharges(): Promise<ExtraCharge[]> {
   const rows = await selectAllOrEmpty(COLLECTIONS.EXTRA_CHARGES);
-  return rows.map((row: any) => ({ id: String(row.id), ...normalizeDbRow(row) })) as ExtraCharge[];
+  return rows.map((row: DbRow) => ({ id: String(row.id), ...normalizeDbRow(row) })) as ExtraCharge[];
 }
 
-export async function upsertServiceRate(serviceRate: ServiceRate) {
+export async function upsertServiceRate(serviceRate: ServiceRate): Promise<DbRow> {
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.SERVICE_RATES)
     .upsert(sanitizeMutationPayload(serviceRate))
@@ -336,7 +327,7 @@ export async function upsertServiceRate(serviceRate: ServiceRate) {
   return normalizeDbRow(data);
 }
 
-export async function updateServiceRate(id: string, data: Partial<ServiceRate>) {
+export async function updateServiceRate(id: string, data: Partial<ServiceRate>): Promise<DbRow> {
   const { data: updated, error } = await supabaseAdmin
     .from(COLLECTIONS.SERVICE_RATES)
     .update(sanitizeMutationPayload(data))
@@ -348,7 +339,7 @@ export async function updateServiceRate(id: string, data: Partial<ServiceRate>) 
   return normalizeDbRow(updated);
 }
 
-export async function upsertExtraCharge(charge: ExtraCharge) {
+export async function upsertExtraCharge(charge: ExtraCharge): Promise<DbRow> {
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.EXTRA_CHARGES)
     .upsert(sanitizeMutationPayload(charge))
@@ -359,7 +350,7 @@ export async function upsertExtraCharge(charge: ExtraCharge) {
   return normalizeDbRow(data);
 }
 
-export async function updateExtraCharge(id: string, data: Partial<ExtraCharge>) {
+export async function updateExtraCharge(id: string, data: Partial<ExtraCharge>): Promise<DbRow> {
   const { data: updated, error } = await supabaseAdmin
     .from(COLLECTIONS.EXTRA_CHARGES)
     .update(sanitizeMutationPayload(data))
@@ -374,35 +365,33 @@ export async function updateExtraCharge(id: string, data: Partial<ExtraCharge>) 
 export async function getVehicles(): Promise<Vehicle[]> {
   const { data, error } = await supabaseAdmin.from(COLLECTIONS.VEHICLES).select("*");
   if (error) throw error;
-  return (data || []).map((row: any) => ({ id: String(row.id), ...normalizeDbRow(row) })) as Vehicle[];
+  return (data || []).map((row: DbRow) => ({ id: String(row.id), ...normalizeDbRow(row) })) as Vehicle[];
 }
 
-export async function getBookings() {
+export async function getBookings(): Promise<DbRow[]> {
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.BOOKINGS)
     .select("*")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row: any) => normalizeDbRow(row));
+  return (data || []).map((row: DbRow) => normalizeDbRow(row));
 }
 
-export async function updateBooking(id: string, data: Record<string, any>) {
+export async function updateBooking(id: string, data: DbRow): Promise<DbRow> {
   const payload = sanitizeMutationPayload({ ...data, updated_at: new Date().toISOString() });
-  const { data: updated, error } = await runMutationWithSchemaFallback<any>(payload, async (nextPayload) =>
-    await supabaseAdmin
-      .from(COLLECTIONS.BOOKINGS)
-      .update(nextPayload)
-      .eq("id", id)
-      .select("*")
-      .single()
-  );
+  const { data: updated, error } = await supabaseAdmin
+    .from(COLLECTIONS.BOOKINGS)
+    .update(payload)
+    .eq("id", id)
+    .select("*")
+    .single();
 
   if (error) throw error;
   return normalizeDbRow(updated);
 }
 
-export async function getDrivers() {
+export async function getDrivers(): Promise<DbRow[]> {
   const { data, error } = await supabaseAdmin.from(COLLECTIONS.DRIVERS).select("*");
 
   if (error) {
@@ -413,15 +402,15 @@ export async function getDrivers() {
   }
 
   return (data || [])
-    .map((row: any) => normalizeDbRow(row))
-    .sort((left: any, right: any) => {
+    .map((row: DbRow) => normalizeDbRow(row))
+    .sort((left: DbRow, right: DbRow) => {
       const leftName = String(left?.firstName || left?.firstname || left?.full_name || left?.fullName || "").toLowerCase();
       const rightName = String(right?.firstName || right?.firstname || right?.full_name || right?.fullName || "").toLowerCase();
       return leftName.localeCompare(rightName);
     });
 }
 
-export async function getDriverByEmail(email: string) {
+export async function getDriverByEmail(email: string): Promise<DbRow | null> {
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.DRIVERS)
     .select("*")
@@ -432,7 +421,7 @@ export async function getDriverByEmail(email: string) {
   return normalizeDbRow(data);
 }
 
-export async function getDriverById(id: string) {
+export async function getDriverById(id: string): Promise<DbRow | null> {
   const normalizedId = String(id || "").trim();
   if (!normalizedId) return null;
 
@@ -452,7 +441,7 @@ export async function getDriverById(id: string) {
   return normalizeDbRow(data);
 }
 
-export async function getBookingsForDriverEmail(email: string) {
+export async function getBookingsForDriverEmail(email: string): Promise<DbRow[]> {
   const driver = await getDriverByEmail(email);
   if (!driver) return [];
 
@@ -463,10 +452,10 @@ export async function getBookingsForDriverEmail(email: string) {
     .order("date_time", { ascending: true });
 
   if (error) throw error;
-  return (data || []).map((row: any) => normalizeDbRow(row));
+  return (data || []).map((row: DbRow) => normalizeDbRow(row));
 }
 
-export async function createBooking(bookingData: BookingData) {
+export async function createBooking(bookingData: BookingData): Promise<DbRow> {
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.BOOKINGS)
     .insert(
@@ -482,7 +471,7 @@ export async function createBooking(bookingData: BookingData) {
   return normalizeDbRow(data);
 }
 
-export async function getBooking(bookingId: string) {
+export async function getBooking(bookingId: string): Promise<(DbRow & { id: string }) | null> {
   const { data, error } = await supabaseAdmin.from(COLLECTIONS.BOOKINGS).select("*").eq("id", bookingId).maybeSingle();
   if (error) throw error;
   return data ? { id: String(data.id), ...normalizeDbRow(data) } : null;
@@ -494,14 +483,12 @@ export async function createUserProfile(userId: string, userData: UserData) {
     ...userData,
   });
 
-  const { error } = await runMutationWithSchemaFallback(payload, async (nextPayload) =>
-    await supabaseAdmin.from(COLLECTIONS.USERS).upsert(nextPayload)
-  );
+  const { error } = await supabaseAdmin.from(COLLECTIONS.USERS).upsert(payload);
 
   if (error) throw error;
 }
 
-export async function getUserProfile(userId: string) {
+export async function getUserProfile(userId: string): Promise<(DbRow & { id: string }) | null> {
   const { data, error } = await supabaseAdmin.from(COLLECTIONS.USERS).select("*").eq("id", userId).maybeSingle();
   if (error) throw error;
   return data ? { id: String(data.id), ...normalizeDbRow(data) } : null;
@@ -543,7 +530,7 @@ export async function requireAuthorizedUser(authHeader: string | null, allowedRo
   }
 
   const profile = await getUserProfile(user.id);
-  const role = canonicalizeUserRole(profile?.role || "user");
+  const role = canonicalizeUserRole(typeof profile?.role === "string" ? profile.role : "user");
   const email = String(user.email || "").trim().toLowerCase();
 
   if (!isAllowedRole(role, allowedRoles)) {
@@ -553,11 +540,11 @@ export async function requireAuthorizedUser(authHeader: string | null, allowedRo
   return { user, role, email };
 }
 
-export async function getGreeterInvoices(email?: string) {
-  let builder: any = supabaseAdmin
+export async function getGreeterInvoices(email?: string): Promise<DbRow[]> {
+  let builder = supabaseAdmin
     .from(GREETER_INVOICES_TABLE)
     .select("*")
-    .order("submitted_at", { ascending: false });
+    .order("submitted_at", { ascending: false }) as unknown as DynamicBuilder;
 
   if (email) {
     builder = builder.eq("greeter_email", email.trim().toLowerCase());
@@ -579,7 +566,7 @@ export async function createGreeterInvoice(input: {
   email: string;
   amount: number;
   notes?: string | null;
-}) {
+}): Promise<DbRow> {
   const email = input.email.trim().toLowerCase();
   const booking = await getBooking(input.bookingId);
 
@@ -631,7 +618,7 @@ export async function createGreeterInvoice(input: {
   return data;
 }
 
-export async function reviewGreeterInvoice(id: string, updates: Record<string, any>) {
+export async function reviewGreeterInvoice(id: string, updates: DbRow): Promise<DbRow> {
   const now = new Date().toISOString();
   const nextStatus = String(updates.office_status || "");
   const payload = {
