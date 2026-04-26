@@ -50,6 +50,36 @@ function toAbsoluteBaseUrl(value: string) {
   return `https://${trimmed}`;
 }
 
+function normalizeInviteActionLink(input: {
+  actionLink: string;
+  baseUrl: string;
+  finalDestination: string;
+}) {
+  const callbackBase = `${input.baseUrl}/auth/callback?next=${encodeURIComponent(input.finalDestination)}`;
+
+  try {
+    const parsed = new URL(input.actionLink);
+    const hash = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : "";
+    const hashParams = new URLSearchParams(hash);
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      return `${callbackBase}#${hash}`;
+    }
+
+    const tokenHash = parsed.searchParams.get("token_hash");
+    const type = parsed.searchParams.get("type");
+    if (tokenHash && type) {
+      return `${callbackBase}&token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(type)}`;
+    }
+
+    return input.actionLink;
+  } catch {
+    return input.actionLink;
+  }
+}
+
 async function generateInviteLink(input: {
   email: string;
   redirectTo: string;
@@ -131,11 +161,16 @@ export async function POST(request: Request) {
         lastName,
         phone,
       });
+      const inviteLink = normalizeInviteActionLink({
+        actionLink: generated.inviteLink,
+        baseUrl,
+        finalDestination,
+      });
 
       const inviteEmail = buildStaffInvitationEmail({
         email,
         role: role as InviteRole,
-        inviteLink: generated.inviteLink,
+        inviteLink,
         fullName: fullName || undefined,
       });
       await sendTransactionalEmail({

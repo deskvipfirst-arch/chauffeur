@@ -37,6 +37,36 @@ function toAbsoluteBaseUrl(value: string) {
   return `https://${trimmed}`;
 }
 
+function normalizeInviteActionLink(input: {
+  actionLink: string;
+  baseUrl: string;
+  finalDestination: string;
+}) {
+  const callbackBase = `${input.baseUrl}/auth/callback?next=${encodeURIComponent(input.finalDestination)}`;
+
+  try {
+    const parsed = new URL(input.actionLink);
+    const hash = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : "";
+    const hashParams = new URLSearchParams(hash);
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      return `${callbackBase}#${hash}`;
+    }
+
+    const tokenHash = parsed.searchParams.get("token_hash");
+    const type = parsed.searchParams.get("type");
+    if (tokenHash && type) {
+      return `${callbackBase}&token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(type)}`;
+    }
+
+    return input.actionLink;
+  } catch {
+    return input.actionLink;
+  }
+}
+
 async function resendStaffInvitation(request: Request, userId: string) {
   const user = await findAuthUserById(userId);
   if (!user) {
@@ -75,10 +105,15 @@ async function resendStaffInvitation(request: Request, userId: string) {
 
   const metadata = (user.user_metadata || {}) as Record<string, unknown>;
   const fullName = String(metadata.full_name || metadata.display_name || metadata.displayName || "").trim();
+  const inviteLink = normalizeInviteActionLink({
+    actionLink: generated.data.properties.action_link,
+    baseUrl,
+    finalDestination,
+  });
   const invitationEmail = buildStaffInvitationEmail({
     email,
     role: role as "admin" | "greeter" | "heathrow",
-    inviteLink: generated.data.properties.action_link,
+    inviteLink,
     fullName: fullName || undefined,
   });
   await sendTransactionalEmail({
