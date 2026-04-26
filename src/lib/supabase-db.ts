@@ -1,4 +1,4 @@
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, supabaseClient as supabase } from "@/lib/supabase/client";
 
 type CollectionRef = {
   kind: "collection";

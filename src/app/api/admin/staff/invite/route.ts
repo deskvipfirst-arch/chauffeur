@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { getBaseUrl } from "@/lib/base-url";
 import { buildStaffInvitationEmail, sendTransactionalEmail } from "@/lib/email";
 import { canonicalizeUserRole } from "@/lib/roles";
 import { createUserProfile, requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase-admin";
+import { getAppBaseUrl, normalizeInviteUrl } from "@/lib/url-helper";
 
 export const runtime = "nodejs";
 
@@ -43,61 +43,8 @@ function getInviteDestination(role: InviteRole) {
   return role === "greeter" ? "/greeter/signin" : "/administrator/signin";
 }
 
-function toAbsoluteBaseUrl(value: string) {
-  const trimmed = String(value || "").trim().replace(/\/$/, "");
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-}
-
 function logInviteLinkWarning(event: string, details: Record<string, unknown>) {
   console.warn("[staff-invite-link]", event, JSON.stringify(details));
-}
-
-function normalizeInviteActionLink(input: {
-  actionLink: string;
-  baseUrl: string;
-  finalDestination: string;
-}) {
-  const callbackBase = `${input.baseUrl}/auth/callback?next=${encodeURIComponent(input.finalDestination)}`;
-
-  try {
-    const parsed = new URL(input.actionLink);
-    const hash = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : "";
-    const hashParams = new URLSearchParams(hash);
-    const accessToken = hashParams.get("access_token");
-    const refreshToken = hashParams.get("refresh_token");
-    const hashTokenHash = hashParams.get("token_hash");
-    const hashType = hashParams.get("type");
-
-    if (accessToken && refreshToken) {
-      return `${callbackBase}#${hash}`;
-    }
-
-    if (hashTokenHash && hashType) {
-      return `${callbackBase}&token_hash=${encodeURIComponent(hashTokenHash)}&type=${encodeURIComponent(hashType)}`;
-    }
-
-    const tokenHash = parsed.searchParams.get("token_hash");
-    const type = parsed.searchParams.get("type");
-    if (tokenHash && type) {
-      return `${callbackBase}&token_hash=${encodeURIComponent(tokenHash)}&type=${encodeURIComponent(type)}`;
-    }
-
-    logInviteLinkWarning("unexpected-action-link-shape", {
-      host: parsed.host,
-      path: parsed.pathname,
-      hasHash: Boolean(hash),
-      queryKeys: Array.from(parsed.searchParams.keys()),
-    });
-
-    return input.actionLink;
-  } catch {
-    logInviteLinkWarning("invalid-action-link-url", {
-      actionLinkSample: input.actionLink.slice(0, 120),
-    });
-    return input.actionLink;
-  }
 }
 
 async function generateInviteLink(input: {
@@ -124,6 +71,7 @@ async function generateInviteLink(input: {
         lastName: input.lastName || undefined,
         last_name: input.lastName || undefined,
         phone: input.phone || undefined,
+        needs_password_setup: true,
       },
     },
   });
@@ -165,8 +113,12 @@ export async function POST(request: Request) {
     const fullName = `${firstName} ${lastName}`.trim();
     const roleUpper = role.toUpperCase() as "ADMIN" | "GREETER" | "HEATHROW";
     const finalDestination = getInviteDestination(role as InviteRole);
-    const baseUrl = toAbsoluteBaseUrl(getBaseUrl(request));
+    const baseUrl = getAppBaseUrl(request);
     const redirectTo = `${baseUrl}/auth/callback?next=${encodeURIComponent(finalDestination)}`;
+
+    if (/\.supabase\.co/i.test(redirectTo)) {
+      throw new Error("Unsafe redirect URL detected. Check APP_BASE_URL/NEXT_PUBLIC_BASE_URL configuration.");
+    }
 
     let user = await findAuthUserByEmail(email);
     let invitationSent = false;
@@ -181,10 +133,26 @@ export async function POST(request: Request) {
         lastName,
         phone,
       });
-      const inviteLink = normalizeInviteActionLink({
-        actionLink: generated.inviteLink,
-        baseUrl,
-        finalDestination,
+      const inviteLink = normalizeInviteUrl(generated.inviteLink, baseUrl, finalDestination);
+
+      logInviteLinkWarning("invite-link-generated", {
+        email,
+        role,
+        redirectTo,
+        generatedLinkHost: (() => {
+          try {
+            return new URL(generated.inviteLink).host;
+          } catch {
+            return "invalid-url";
+          }
+        })(),
+        normalizedLinkHost: (() => {
+          try {
+            return new URL(inviteLink).host;
+          } catch {
+            return "invalid-url";
+          }
+        })(),
       });
 
       const inviteEmail = buildStaffInvitationEmail({

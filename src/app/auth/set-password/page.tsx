@@ -2,10 +2,16 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabaseClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
+
+function getRoleRedirect(role: string) {
+  if (role === "greeter") return "/greeter/signin";
+  if (role === "admin" || role === "heathrow") return "/administrator/signin";
+  return "/user/signin";
+}
 
 function SetPasswordContent() {
   const searchParams = useSearchParams();
@@ -17,6 +23,12 @@ function SetPasswordContent() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  const resolveNextDestination = async () => {
+    const { data } = await supabaseClient.auth.getUser();
+    const role = String(data.user?.user_metadata?.role || "").trim().toLowerCase();
+    return next === "/" || next === "/greeter/signin" ? getRoleRedirect(role) : next;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,10 +45,26 @@ function SetPasswordContent() {
 
     setIsLoading(true);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ password });
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("Your invite session has expired. Please request a new invitation email.");
+      }
+
+      const { error: updateError } = await supabaseClient.auth.updateUser({
+        password,
+        data: {
+          needs_password_setup: false,
+        },
+      });
       if (updateError) throw updateError;
+
+      if (typeof document !== "undefined") {
+        document.cookie = "vip_needs_password_setup=; path=/; max-age=0; samesite=lax";
+      }
+
+      const destination = await resolveNextDestination();
       setDone(true);
-      setTimeout(() => router.replace(next), 2500);
+      setTimeout(() => router.replace(destination), 2500);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to set password. Please try again.");
     } finally {

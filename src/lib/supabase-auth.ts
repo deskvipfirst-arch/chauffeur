@@ -1,5 +1,5 @@
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import { auth, db, getCurrentUser, setCachedUser, supabase, toCompatUser, type CompatUser } from "@/lib/supabase";
+import { auth, db, getCurrentUser, setCachedUser, supabaseClient, toCompatUser, type CompatUser } from "@/lib/supabase/client";
 import { doc, setDoc } from "@/lib/supabase-db";
 
 function normalizeAuthError(error: any) {
@@ -37,7 +37,7 @@ export async function signInWithEmailAndPassword(
   email: string,
   password: string
 ): Promise<{ user: CompatUser }> {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) throw normalizeAuthError(error);
 
   setCachedUser(data.user ?? null);
@@ -68,7 +68,7 @@ export async function createUserWithEmailAndPassword(
     options?.userData?.displayName ||
     `${options?.userData?.firstName || ""} ${options?.userData?.lastName || ""}`.trim();
 
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await supabaseClient.auth.signUp({
     email,
     password,
     options: {
@@ -109,7 +109,7 @@ export async function syncUserProfile(
     role?: string;
   }
 ) {
-  const { data: sessionData } = await supabase.auth.getSession();
+  const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session || !user?.uid) {
     return false;
   }
@@ -126,12 +126,12 @@ export async function syncUserProfile(
 }
 
 export async function updateProfile(_user: any, profile: { displayName?: string; photoURL?: string | null }) {
-  const { data: sessionData } = await supabase.auth.getSession();
+  const { data: sessionData } = await supabaseClient.auth.getSession();
   if (!sessionData.session) {
     return;
   }
 
-  const { error } = await supabase.auth.updateUser({
+  const { error } = await supabaseClient.auth.updateUser({
     data: {
       displayName: profile.displayName,
       display_name: profile.displayName,
@@ -146,7 +146,7 @@ export async function updateProfile(_user: any, profile: { displayName?: string;
 export function onAuthStateChanged(_auth: typeof auth, callback: (user: any) => void) {
   void getCurrentUser().then(callback);
 
-  const { data } = supabase.auth.onAuthStateChange(
+  const { data } = supabaseClient.auth.onAuthStateChange(
     (_event: AuthChangeEvent, session: Session | null) => {
       callback(setCachedUser(session?.user ?? null));
     }
@@ -164,7 +164,7 @@ export async function sendPasswordResetEmail(_auth: typeof auth, email: string) 
     (typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined) ||
     process.env.NEXT_PUBLIC_BASE_URL;
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
     redirectTo,
   });
 
@@ -176,7 +176,7 @@ export async function resendSignUpVerificationEmail(_auth: typeof auth, email: s
     (typeof window !== "undefined" ? `${window.location.origin}/user/dashboard` : undefined) ||
     process.env.NEXT_PUBLIC_BASE_URL;
 
-  const { error } = await supabase.auth.resend({
+  const { error } = await supabaseClient.auth.resend({
     type: "signup",
     email,
     options: {
@@ -194,7 +194,7 @@ export async function signInWithPopup(
 ) {
   const redirectTo = typeof window !== "undefined" ? `${window.location.origin}${redirectPath}` : undefined;
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
+  const { data, error } = await supabaseClient.auth.signInWithOAuth({
     provider: provider.providerId as "google",
     options: { redirectTo },
   });
@@ -209,6 +209,6 @@ export async function verifyPasswordResetCode(_auth: typeof auth, _code: string)
 }
 
 export async function confirmPasswordReset(_auth: typeof auth, _code: string, newPassword: string) {
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
   if (error) throw normalizeAuthError(error);
 }

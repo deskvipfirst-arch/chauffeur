@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabaseClient } from "@/lib/supabase/client";
 
 function sanitizeNextPath(value: string | null) {
   const candidate = String(value || "").trim();
@@ -11,6 +11,19 @@ function sanitizeNextPath(value: string | null) {
   }
 
   return candidate;
+}
+
+function logAuthCallback(event: string, details: Record<string, unknown>) {
+  console.info("[auth-callback]", event, details);
+}
+
+function setNeedsPasswordSetupCookie(value: "1" | "0") {
+  if (typeof document === "undefined") return;
+  if (value === "1") {
+    document.cookie = "vip_needs_password_setup=1; path=/; max-age=3600; samesite=lax";
+    return;
+  }
+  document.cookie = "vip_needs_password_setup=; path=/; max-age=0; samesite=lax";
 }
 
 function AuthCallbackContent() {
@@ -46,15 +59,28 @@ function AuthCallbackContent() {
       | null;
     const hashType = hashParams.get("type") as "invite" | null;
 
+    logAuthCallback("received", {
+      hasTokenHash: Boolean(tokenHash),
+      hasCode: Boolean(authCode),
+      hasHashAccessToken: Boolean(hashAccessToken),
+      hasHashRefreshToken: Boolean(hashRefreshToken),
+      hasHashTokenHash: Boolean(hashTokenHash),
+      queryType: type,
+      hashType,
+      next,
+    });
+
     if (authCode) {
       setStatus("Completing secure sign in…");
-      supabase.auth.exchangeCodeForSession(authCode).then(({ error: exchangeError }) => {
+      supabaseClient.auth.exchangeCodeForSession(authCode).then(({ error: exchangeError }) => {
         if (exchangeError) {
+          logAuthCallback("exchangeCodeForSession-error", { message: exchangeError.message });
           setError(exchangeError.message || "Failed to complete sign in.");
           return;
         }
 
         if (type === "invite") {
+          setNeedsPasswordSetupCookie("1");
           router.replace(`/auth/set-password?next=${encodeURIComponent(next)}`);
           return;
         }
@@ -66,13 +92,15 @@ function AuthCallbackContent() {
 
     if (!tokenHash && hashTokenHash && hashOtpType) {
       setStatus("Verifying your invitation…");
-      supabase.auth.verifyOtp({ token_hash: hashTokenHash, type: hashOtpType }).then(({ error: verifyError }) => {
+      supabaseClient.auth.verifyOtp({ token_hash: hashTokenHash, type: hashOtpType }).then(({ error: verifyError }) => {
         if (verifyError) {
+          logAuthCallback("verifyOtp-hash-error", { message: verifyError.message });
           setError(verifyError.message || "Failed to verify your invitation. Please request a new one.");
           return;
         }
 
         if (hashOtpType === "invite") {
+          setNeedsPasswordSetupCookie("1");
           router.replace(`/auth/set-password?next=${encodeURIComponent(next)}`);
           return;
         }
@@ -84,18 +112,20 @@ function AuthCallbackContent() {
 
     if (!tokenHash && hashAccessToken && hashRefreshToken) {
       setStatus("Finalizing your secure session…");
-      supabase.auth
+      supabaseClient.auth
         .setSession({
           access_token: hashAccessToken,
           refresh_token: hashRefreshToken,
         })
         .then(({ error: sessionError }) => {
           if (sessionError) {
+            logAuthCallback("setSession-error", { message: sessionError.message });
             setError(sessionError.message || "Failed to initialize your invitation session.");
             return;
           }
 
           if (hashType === "invite") {
+            setNeedsPasswordSetupCookie("1");
             router.replace(`/auth/set-password?next=${encodeURIComponent(next)}`);
             return;
           }
@@ -106,18 +136,25 @@ function AuthCallbackContent() {
     }
 
     if (!tokenHash || !type) {
+      logAuthCallback("invalid-missing-token", {
+        hasTokenHash: Boolean(tokenHash),
+        type,
+        hashLength: typeof window !== "undefined" ? window.location.hash.length : 0,
+      });
       setError("Invalid or missing authentication token. Please request a new invitation.");
       return;
     }
 
-    supabase.auth.verifyOtp({ token_hash: tokenHash, type }).then(({ error: verifyError }) => {
+    supabaseClient.auth.verifyOtp({ token_hash: tokenHash, type }).then(({ error: verifyError }) => {
       if (verifyError) {
+        logAuthCallback("verifyOtp-query-error", { message: verifyError.message });
         setError(verifyError.message || "Failed to verify your invitation. Please request a new one.");
         return;
       }
 
       if (type === "invite") {
         setStatus("Invitation verified. Setting up your account…");
+        setNeedsPasswordSetupCookie("1");
         router.replace(`/auth/set-password?next=${encodeURIComponent(next)}`);
       } else {
         router.replace(next);
@@ -136,9 +173,21 @@ function AuthCallbackContent() {
           </div>
           <h1 className="text-xl font-bold text-destructive mb-2">Invitation Error</h1>
           <p className="text-muted-foreground mb-6 text-sm">{error}</p>
-          <a href="/greeter/signin" className="text-primary underline text-sm">
-            Back to sign in
-          </a>
+          <div className="flex items-center justify-center gap-4">
+            <a href="/greeter/signin" className="text-primary underline text-sm">
+              Go to greeter sign in
+            </a>
+            <a href="/administrator/signin" className="text-primary underline text-sm">
+              Go to office sign in
+            </a>
+          </div>
+          <button
+            type="button"
+            className="mt-4 text-xs text-muted-foreground underline"
+            onClick={() => window.location.reload()}
+          >
+            Retry callback
+          </button>
         </div>
       </div>
     );

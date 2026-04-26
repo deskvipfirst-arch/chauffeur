@@ -1,26 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { ExtraCharge, Location, ServiceRate, Vehicle, BookingData, UserData } from "./types";
 import { COLLECTIONS } from "./types";
 import { normalizeDbRow, sanitizeMutationPayload } from "./supabase-db";
 import { canonicalizeUserRole, isAllowedRole } from "./roles";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const serviceRoleKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "placeholder-service-role-key";
-
 const GREETER_INVOICES_TABLE = "greeter_invoices";
 const APP_SETTINGS_TABLE = "app_settings";
 const OFFICE_NOTIFICATION_EMAIL_KEY = "office_notification_email";
 
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+export const supabaseAdmin = createServiceRoleClient();
 
 function getBearerToken(authHeader: string | null) {
   if (!authHeader) return "";

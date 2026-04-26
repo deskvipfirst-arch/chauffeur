@@ -1,4 +1,4 @@
-import { storage } from "@/lib/supabase";
+import { storage } from "@/lib/supabase/client";
 
 const STORAGE_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ||
