@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getBaseUrl } from "@/lib/base-url";
+import { buildStaffInvitationEmail, sendTransactionalEmail } from "@/lib/email";
 import { canonicalizeUserRole } from "@/lib/roles";
 import { createUserProfile, requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -38,6 +39,60 @@ async function findAuthUserByEmail(email: string) {
   return data.users.find((user) => String(user.email || "").trim().toLowerCase() === email) || null;
 }
 
+function getInviteDestination(role: InviteRole) {
+  return role === "greeter" ? "/greeter/signin" : "/administrator/signin";
+}
+
+function toAbsoluteBaseUrl(value: string) {
+  const trimmed = String(value || "").trim().replace(/\/$/, "");
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+async function generateInviteLink(input: {
+  email: string;
+  redirectTo: string;
+  role: InviteRole;
+  fullName: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+}) {
+  const generated = await supabaseAdmin.auth.admin.generateLink({
+    type: "invite",
+    email: input.email,
+    options: {
+      redirectTo: input.redirectTo,
+      data: {
+        role: input.role,
+        displayName: input.fullName || undefined,
+        display_name: input.fullName || undefined,
+        full_name: input.fullName || undefined,
+        firstName: input.firstName || undefined,
+        first_name: input.firstName || undefined,
+        lastName: input.lastName || undefined,
+        last_name: input.lastName || undefined,
+        phone: input.phone || undefined,
+      },
+    },
+  });
+
+  if (generated.error || !generated.data?.user) {
+    throw generated.error || new Error("Failed to generate invitation link");
+  }
+
+  const inviteLink = generated.data?.properties?.action_link;
+  if (!inviteLink) {
+    throw new Error("Supabase did not return an invitation action link");
+  }
+
+  return {
+    user: generated.data.user,
+    inviteLink,
+  };
+}
+
 export async function POST(request: Request) {
   try {
     await requireAuthorizedUser(request.headers.get("authorization"), ["admin"]);
@@ -59,32 +114,39 @@ export async function POST(request: Request) {
 
     const fullName = `${firstName} ${lastName}`.trim();
     const roleUpper = role.toUpperCase() as "ADMIN" | "GREETER" | "HEATHROW";
-    const finalDestination = role === "greeter" ? "/greeter/signin" : "/administrator/signin";
-    const redirectTo = `${getBaseUrl(request)}/auth/callback?next=${encodeURIComponent(finalDestination)}`;
+    const finalDestination = getInviteDestination(role as InviteRole);
+    const baseUrl = toAbsoluteBaseUrl(getBaseUrl(request));
+    const redirectTo = `${baseUrl}/auth/callback?next=${encodeURIComponent(finalDestination)}`;
 
     let user = await findAuthUserByEmail(email);
+    let invitationSent = false;
 
     if (!user) {
-      const invited = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      const generated = await generateInviteLink({
+        email,
         redirectTo,
-        data: {
-          role,
-          displayName: fullName || undefined,
-          display_name: fullName || undefined,
-          full_name: fullName || undefined,
-          firstName: firstName || undefined,
-          first_name: firstName || undefined,
-          lastName: lastName || undefined,
-          last_name: lastName || undefined,
-          phone: phone || undefined,
-        },
+        role: role as InviteRole,
+        fullName,
+        firstName,
+        lastName,
+        phone,
       });
 
-      if (invited.error || !invited.data.user) {
-        throw invited.error || new Error("Failed to invite staff member");
-      }
+      const inviteEmail = buildStaffInvitationEmail({
+        email,
+        role: role as InviteRole,
+        inviteLink: generated.inviteLink,
+        fullName: fullName || undefined,
+      });
+      await sendTransactionalEmail({
+        to: email,
+        subject: inviteEmail.subject,
+        html: inviteEmail.html,
+        text: inviteEmail.text,
+      });
 
-      user = invited.data.user;
+      user = generated.user;
+      invitationSent = true;
     } else {
       const updated = await supabaseAdmin.auth.admin.updateUserById(user.id, {
         user_metadata: {
@@ -122,7 +184,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: user.created_at === user.updated_at ? "Invitation sent successfully." : "Staff access updated successfully.",
+      message: invitationSent ? "Invitation sent successfully." : "Staff access updated successfully.",
       user: {
         id: user.id,
         email: user.email,

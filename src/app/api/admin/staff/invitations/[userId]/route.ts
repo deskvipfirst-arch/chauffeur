@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getBaseUrl } from "@/lib/base-url";
+import { buildStaffInvitationEmail, sendTransactionalEmail } from "@/lib/email";
 import { canonicalizeUserRole } from "@/lib/roles";
 import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase-admin";
 import { COLLECTIONS } from "@/lib/types";
@@ -25,6 +26,17 @@ function isPendingInvite(user: any) {
   return !((user as any)?.last_sign_in_at || (user as any)?.email_confirmed_at || (user as any)?.confirmed_at);
 }
 
+function getInviteDestination(role: string) {
+  return role === "greeter" ? "/greeter/signin" : "/administrator/signin";
+}
+
+function toAbsoluteBaseUrl(value: string) {
+  const trimmed = String(value || "").trim().replace(/\/$/, "");
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 async function resendStaffInvitation(request: Request, userId: string) {
   const user = await findAuthUserById(userId);
   if (!user) {
@@ -41,35 +53,40 @@ async function resendStaffInvitation(request: Request, userId: string) {
   }
 
   const email = String(user.email || "").trim().toLowerCase();
-  const redirectPath = role === "greeter" ? "/greeter/signin" : "/administrator/signin";
-  const redirectTo = `${getBaseUrl(request)}${redirectPath}`;
+  const finalDestination = getInviteDestination(role);
+  const baseUrl = toAbsoluteBaseUrl(getBaseUrl(request));
+  const redirectTo = `${baseUrl}/auth/callback?next=${encodeURIComponent(finalDestination)}`;
 
-  const invited = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    redirectTo,
-    data: {
-      ...(user.user_metadata || {}),
-      role,
+  const generated = await supabaseAdmin.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: {
+      redirectTo,
+      data: {
+        ...(user.user_metadata || {}),
+        role,
+      },
     },
   });
 
-  if (invited.error) {
-    const resendMethod = (supabaseAdmin.auth as any).resend;
-    if (typeof resendMethod === "function") {
-      const resendResult = await resendMethod({
-        type: "signup",
-        email,
-        options: {
-          emailRedirectTo: redirectTo,
-        },
-      });
-
-      if (resendResult?.error) {
-        return NextResponse.json({ error: resendResult.error.message || "Failed to resend invitation" }, { status: 500 });
-      }
-    } else {
-      return NextResponse.json({ error: invited.error.message || "Failed to resend invitation" }, { status: 500 });
-    }
+  if (generated.error || !generated.data?.properties?.action_link) {
+    return NextResponse.json({ error: generated.error?.message || "Failed to regenerate invitation link" }, { status: 500 });
   }
+
+  const metadata = (user.user_metadata || {}) as Record<string, unknown>;
+  const fullName = String(metadata.full_name || metadata.display_name || metadata.displayName || "").trim();
+  const invitationEmail = buildStaffInvitationEmail({
+    email,
+    role: role as "admin" | "greeter" | "heathrow",
+    inviteLink: generated.data.properties.action_link,
+    fullName: fullName || undefined,
+  });
+  await sendTransactionalEmail({
+    to: email,
+    subject: invitationEmail.subject,
+    html: invitationEmail.html,
+    text: invitationEmail.text,
+  });
 
   return NextResponse.json({ success: true, message: "Invitation resent successfully" });
 }

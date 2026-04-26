@@ -21,6 +21,36 @@ function AuthCallbackContent() {
       | null;
     const next = searchParams.get("next") || "/";
 
+    const hashParams = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.hash.replace(/^#/, ""))
+      : new URLSearchParams();
+    const hashAccessToken = hashParams.get("access_token");
+    const hashRefreshToken = hashParams.get("refresh_token");
+    const hashType = hashParams.get("type") as "invite" | null;
+
+    if (!tokenHash && hashAccessToken && hashRefreshToken) {
+      setStatus("Finalizing your secure session…");
+      supabase.auth
+        .setSession({
+          access_token: hashAccessToken,
+          refresh_token: hashRefreshToken,
+        })
+        .then(({ error: sessionError }) => {
+          if (sessionError) {
+            setError(sessionError.message || "Failed to initialize your invitation session.");
+            return;
+          }
+
+          if (hashType === "invite") {
+            router.replace(`/auth/set-password?next=${encodeURIComponent(next)}`);
+            return;
+          }
+
+          router.replace(next);
+        });
+      return;
+    }
+
     if (!tokenHash || !type) {
       setError("Invalid or missing authentication token. Please request a new invitation.");
       return;

@@ -59,6 +59,15 @@ type GreeterAssignmentEmailInput = {
   supportEmail?: string;
 };
 
+type StaffInvitationEmailInput = {
+  email: string;
+  role: "admin" | "greeter" | "heathrow";
+  invitedBy?: string;
+  inviteLink: string;
+  fullName?: string;
+  supportEmail?: string;
+};
+
 const BRAND_NAME = APP_NAME;
 const BRAND_ACCENT = "#DAA520";
 const BRAND_DARK = "#1D3557";
@@ -515,6 +524,40 @@ export function buildGreeterAssignmentEmail(input: GreeterAssignmentEmailInput) 
       ctaText: dashboardUrl ? "Open Greeter Dashboard" : undefined,
       ctaUrl: dashboardUrl || undefined,
       footerNote: "This assignment was sent by the VIP Greeters office team.",
+      supportEmail: input.supportEmail,
+    }),
+  };
+}
+
+export function buildStaffInvitationEmail(input: StaffInvitationEmailInput) {
+  const roleLabel = input.role === "heathrow"
+    ? "Heathrow Operations"
+    : input.role === "greeter"
+      ? "Greeter"
+      : "Office Administrator";
+  const invitedBy = String(input.invitedBy || "VIP Greeters Office").trim();
+  const nameLine = input.fullName ? `Hi ${escapeHtml(input.fullName)},` : "Hello,";
+
+  return {
+    subject: `You're invited to join VIP Greeters as ${roleLabel}`,
+    text: `${input.fullName ? `Hi ${input.fullName},` : "Hello,"}\n\nYou've been invited by ${invitedBy} to join VIP Greeters as ${roleLabel}.\n\nAccept your invitation: ${input.inviteLink}\n\nIf you did not expect this invitation, you can safely ignore this email.`,
+    html: buildEmailShell({
+      preheader: `Invitation to join VIP Greeters as ${roleLabel}`,
+      title: "You're Invited to Join VIP Greeters",
+      intro: `${nameLine} you've been invited by ${escapeHtml(invitedBy)} to join our operations platform.`,
+      contentHtml: `
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+          ${buildInfoRow("Invited Email", escapeHtml(input.email))}
+          ${buildInfoRow("Access Role", `<strong>${escapeHtml(roleLabel)}</strong>`) }
+          ${buildInfoRow("Invited By", escapeHtml(invitedBy))}
+        </table>
+        <div style="margin-top:18px;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;font-size:13px;color:#1e40af;">
+          Click <strong>Accept Invitation</strong> to securely activate your account and set your password.
+        </div>
+      `,
+      ctaText: "Accept Invitation",
+      ctaUrl: input.inviteLink,
+      footerNote: "If you were not expecting this invite, you can ignore this email.",
       supportEmail: input.supportEmail,
     }),
   };
