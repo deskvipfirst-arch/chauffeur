@@ -31,6 +31,6 @@ describe("getBaseUrl", () => {
 
     const request = new Request("http://localhost:3000/api/checkout");
 
-    expect(getBaseUrl(request)).toBe("https://localhost:3000");
+    expect(getBaseUrl(request)).toBe("http://localhost:3000");
   });
 });

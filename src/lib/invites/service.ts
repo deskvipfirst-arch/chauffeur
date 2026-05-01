@@ -1,6 +1,6 @@
 import { findUserByEmail } from "@/lib/db/users";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { buildInviteCallbackUrl, extractTokensFromInviteUrl, getBaseUrl } from "@/lib/url";
+import { buildInviteCallbackUrl, extractTokensFromInviteUrl, getBaseUrl, rewriteInviteVerifyRedirect } from "@/lib/url";
 
 interface InviteOptions {
   email: string;
@@ -15,12 +15,32 @@ function logInviteService(event: string, details: Record<string, unknown>) {
   console.info("[invite-flow]", event, details);
 }
 
+function assertValidInviteBaseUrl(baseUrl: string) {
+  const normalizedBaseUrl = String(baseUrl || "").trim().toLowerCase();
+  if (!/^https?:\/\//.test(normalizedBaseUrl)) {
+    throw new Error(`Invalid base URL format: ${baseUrl}. Must include protocol.`);
+  }
+
+  if (normalizedBaseUrl.includes("supabase.co")) {
+    throw new Error(`Invalid base URL: ${baseUrl} points to Supabase, not your app domain.`);
+  }
+}
+
 export async function createInvite(options: InviteOptions, request?: Request) {
   const baseUrl = getBaseUrl(request);
+  assertValidInviteBaseUrl(baseUrl);
+
   const fullName = `${options.firstName || ""} ${options.lastName || ""}`.trim();
 
   // Supabase generateLink does not reliably preserve query params in redirectTo.
   const redirectTo = `${baseUrl}/auth/callback`;
+
+  logInviteService("create-invite-generate-link", {
+    email: options.email,
+    role: options.role,
+    baseUrl,
+    redirectTo,
+  });
 
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({
     type: "invite",
@@ -43,12 +63,18 @@ export async function createInvite(options: InviteOptions, request?: Request) {
     throw new Error(error?.message || "Failed to generate invite link");
   }
 
+  logInviteService("create-invite-action-link", {
+    email: options.email,
+    role: options.role,
+    actionLink: data.properties.action_link,
+  });
+
   const tokens = extractTokensFromInviteUrl(data.properties.action_link);
   const destination = options.role === "greeter" ? "/greeter/signin" : "/administrator/signin";
   const hasNormalizedTokens = Boolean(tokens.code || tokens.accessToken || tokens.tokenHash);
   const cleanInviteUrl = hasNormalizedTokens
     ? buildInviteCallbackUrl(baseUrl, tokens, destination)
-    : data.properties.action_link;
+    : rewriteInviteVerifyRedirect(data.properties.action_link, baseUrl, destination);
 
   logInviteService("create-invite-link", {
     email: options.email,

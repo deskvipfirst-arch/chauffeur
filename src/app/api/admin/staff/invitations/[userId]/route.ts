@@ -6,7 +6,7 @@ import { buildStaffInvitationEmail, sendTransactionalEmail } from "@/lib/email";
 import { canonicalizeUserRole } from "@/lib/roles";
 import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase/admin";
 import { COLLECTIONS } from "@/lib/types";
-import { buildInviteCallbackUrl, extractTokensFromInviteUrl, getBaseUrl } from "@/lib/url";
+import { buildInviteCallbackUrl, extractTokensFromInviteUrl, getBaseUrl, rewriteInviteVerifyRedirect } from "@/lib/url";
 
 export const runtime = "nodejs";
 
@@ -69,6 +69,13 @@ async function resendStaffInvitation(request: Request, userId: string) {
   const baseUrl = getBaseUrl(request);
   const redirectTo = `${baseUrl}/auth/callback`;
 
+  if (!/^https?:\/\//i.test(baseUrl)) {
+    return NextResponse.json(
+      { error: `Invalid base URL format: ${baseUrl}. Must include protocol.` },
+      { status: 500 }
+    );
+  }
+
   logInviteAction("resend-start", {
     userId,
     email,
@@ -107,7 +114,7 @@ async function resendStaffInvitation(request: Request, userId: string) {
   const hasNormalizedTokens = Boolean(extractedTokens.code || extractedTokens.accessToken || extractedTokens.tokenHash);
   const inviteLink = hasNormalizedTokens
     ? buildInviteCallbackUrl(baseUrl, extractedTokens, finalDestination)
-    : generated.data.properties.action_link;
+    : rewriteInviteVerifyRedirect(generated.data.properties.action_link, baseUrl, finalDestination);
 
   logInviteLinkWarning("invite-link-regenerated", {
     email,

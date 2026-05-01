@@ -3,14 +3,24 @@ function normalizeUrl(url: string): string {
     const parsed = new URL(url);
     return `${parsed.protocol}//${parsed.host}`;
   } catch {
-    return "";
+    // Accept host-only env values like "www.example.com" by defaulting to https.
+    try {
+      const parsed = new URL(`https://${String(url || "").trim()}`);
+      return `${parsed.protocol}//${parsed.host}`;
+    } catch {
+      return "";
+    }
   }
 }
 
 export function getBaseUrl(request?: Request): string {
   // Priority 1: Environment variable
-  const envUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_BASE_URL;
+  let envUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_BASE_URL;
   if (envUrl) {
+    if (!/^https?:\/\//i.test(envUrl)) {
+      envUrl = `https://${envUrl}`;
+    }
+
     const normalized = normalizeUrl(envUrl);
     if (normalized && (!normalized.includes("localhost") || process.env.NODE_ENV === "production")) {
       return normalized;
@@ -27,7 +37,7 @@ export function getBaseUrl(request?: Request): string {
   }
 
   // Priority 3: Fallback for development
-  return process.env.NODE_ENV === "production" ? "https://yourdomain.com" : "http://localhost:3000";
+  return process.env.NODE_ENV === "production" ? "https://www.vipgreeters.co.uk" : "http://localhost:3000";
 }
 
 export function extractTokensFromInviteUrl(inviteUrl: string): {
@@ -92,4 +102,15 @@ export function buildInviteCallbackUrl(
 
   // Fallback - return just the callback URL
   return `${baseUrl}/auth/callback${nextParam}`;
+}
+
+export function rewriteInviteVerifyRedirect(actionLink: string, baseUrl: string, nextPath?: string): string {
+  try {
+    const parsed = new URL(actionLink);
+    const callbackUrl = buildInviteCallbackUrl(baseUrl, {}, nextPath);
+    parsed.searchParams.set("redirect_to", callbackUrl);
+    return parsed.toString();
+  } catch {
+    return actionLink;
+  }
 }
