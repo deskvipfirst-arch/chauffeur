@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import {
   Mail,
   Menu,
@@ -18,12 +18,25 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { getUserFirstName } from "@/lib/userDisplay";
+import { canonicalizeUserRole } from "@/lib/roles";
 import { APP_NAME, CONTACT_EMAIL, CONTACT_PHONE } from "@/lib/globalConfig";
 
 type HeaderUserProfile = {
   firstName?: string;
   email?: string;
 } & Record<string, unknown>;
+
+function getDashboardUrl(role: string | null | undefined): string {
+  const canonical = canonicalizeUserRole(role);
+  if (canonical === "greeter") return "/greeter/dashboard";
+  if (canonical === "admin" || canonical === "heathrow") return "/administrator/dashboard";
+  return "/user/dashboard";
+}
+
+function isStaffRole(role: string | null | undefined): boolean {
+  const canonical = canonicalizeUserRole(role);
+  return ["greeter", "admin", "heathrow"].includes(canonical);
+}
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
@@ -89,6 +102,8 @@ export function Header() {
   };
 
   const greetingName = getUserFirstName(userProfile, user);
+  const dashboardUrl = getDashboardUrl(user?.role);
+  const isStaff = isStaffRole(user?.role);
 
   return (
     <header className="border-b relative z-[100]">
@@ -294,24 +309,38 @@ export function Header() {
                         <div className="py-1">
                           <button
                             onClick={() => {
-                              router.push("/user/dashboard");
+                              router.push(dashboardUrl);
                               setIsDropdownOpen(false);
                             }}
                             className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           >
                             <LayoutDashboard className="mr-2 h-4 w-4" />
-                            <span>Dashboard</span>
+                            <span>My Dashboard</span>
                           </button>
-                          <button
-                            onClick={() => {
-                              router.push("/user/profile");
-                              setIsDropdownOpen(false);
-                            }}
-                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          >
-                            <User className="mr-2 h-4 w-4" />
-                            <span>Profile</span>
-                          </button>
+                          {isStaff && (
+                            <button
+                              onClick={() => {
+                                router.push("/user/dashboard");
+                                setIsDropdownOpen(false);
+                              }}
+                              className="flex items-center w-full px-4 py-2 text-sm text-gray-500 hover:bg-gray-100"
+                            >
+                              <User className="mr-2 h-4 w-4" />
+                              <span>Switch to Passenger View</span>
+                            </button>
+                          )}
+                          {!isStaff && (
+                            <button
+                              onClick={() => {
+                                router.push("/user/profile");
+                                setIsDropdownOpen(false);
+                              }}
+                              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                              <User className="mr-2 h-4 w-4" />
+                              <span>Profile</span>
+                            </button>
+                          )}
                           <div className="border-t border-gray-100"></div>
                           <button
                             onClick={() => {
@@ -459,19 +488,30 @@ export function Header() {
                     Hello, {greetingName}
                   </div>
                   <Link
-                    href="/user/dashboard"
+                    href={dashboardUrl}
                     onClick={toggleMenu}
                     className="text-sm font-medium hover:text-primary"
                   >
-                    Dashboard
+                    My Dashboard
                   </Link>
-                  <Link
-                    href="/user/profile"
-                    onClick={toggleMenu}
-                    className="text-sm font-medium hover:text-primary"
-                  >
-                    Profile
-                  </Link>
+                  {isStaff && (
+                    <Link
+                      href="/user/dashboard"
+                      onClick={toggleMenu}
+                      className="text-sm font-medium text-gray-500 hover:text-primary"
+                    >
+                      Switch to Passenger View
+                    </Link>
+                  )}
+                  {!isStaff && (
+                    <Link
+                      href="/user/profile"
+                      onClick={toggleMenu}
+                      className="text-sm font-medium hover:text-primary"
+                    >
+                      Profile
+                    </Link>
+                  )}
                   <button
                     onClick={() => {
                       handleSignOut();
@@ -506,5 +546,3 @@ export function Header() {
     </header>
   );
 }
-
-
