@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Booking, GreeterInvoice, GreeterInvoiceStatus } from "@/types/admin";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 import { getInvoiceStatusLabel, getOfficeInvoiceActions, summarizeInvoiceMetrics } from "@/lib/invoiceWorkflow";
 import { getAccessToken } from "@/lib/supabase/browser";
 
