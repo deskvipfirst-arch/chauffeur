@@ -26,35 +26,18 @@ export default function AdminSignInPage() {
   // Clear any existing auth state when the page loads
   useEffect(() => {
     const checkAndClearAuth = async () => {
-      console.log("Checking initial auth state...");
       const currentUser = auth.currentUser;
       if (currentUser) {
-        console.log("Found existing user:", currentUser.uid);
         try {
           const hasDashboardAccess = await isAdminOrHeathrowUser(currentUser.uid);
-          console.log("Has dashboard access:", hasDashboardAccess);
           if (!hasDashboardAccess) {
-            console.log("User does not have dashboard access, signing out...");
             await auth.signOut();
-            // Clear session cookie
-            document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
           } else {
-            console.log("User has dashboard access, redirecting to dashboard...");
-            // Set session cookie
-            const token = await currentUser.getIdToken();
-            document.cookie = `session=${token}; path=/;`;
             window.location.replace("/administrator/dashboard");
           }
         } catch (error) {
-          console.error("Error checking admin status:", error);
           await auth.signOut();
-          // Clear session cookie
-          document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         }
-      } else {
-        console.log("No existing user found");
-        // Clear session cookie
-        document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       }
     };
 
@@ -69,8 +52,6 @@ export default function AdminSignInPage() {
     setError(null);
 
     try {
-      console.log("Starting sign in process...");
-      
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
@@ -78,34 +59,20 @@ export default function AdminSignInPage() {
       }
 
       // First, sign out any existing user
-      console.log("Signing out any existing user...");
       await auth.signOut();
-      // Clear session cookie
-      document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
 
       // Attempt to sign in
-      console.log("Attempting to sign in...");
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log("Sign in successful, checking admin status...");
       
       // Check if user can access admin/heathrow dashboard
       const hasDashboardAccess = await isAdminOrHeathrowUser(userCredential.user.uid);
-      console.log("Has dashboard access:", hasDashboardAccess);
       
       if (!hasDashboardAccess) {
-        console.log("User does not have dashboard access, signing out...");
         await auth.signOut();
-        // Clear session cookie
-        document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         throw new Error("Unauthorized access. Admin or Heathrow operations privileges required.");
       }
 
       // If we get here, the user is authenticated and can access dashboard
-      console.log("User has dashboard access, setting session cookie and redirecting...");
-      // Set session cookie
-      const token = await userCredential.user.getIdToken();
-      document.cookie = `session=${token}; path=/;`;
-      
       toast.success("Successfully signed in");
       
       // Use replace instead of push to prevent back button issues

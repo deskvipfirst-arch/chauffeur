@@ -12,9 +12,8 @@ import {
 import Link from "next/link";
 import { Button } from "./button";
 import { useState, useEffect, useRef } from "react";
-import { auth, db } from "@/lib/supabase/browser";
+import { auth, supabase } from "@/lib/supabase/browser";
 import { onAuthStateChanged, signOut } from "@/lib/supabase/browser";
-import { doc, getDoc } from "@/lib/supabase-db";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
@@ -47,9 +46,9 @@ export function Header() {
     const unsubscribe = onAuthStateChanged(auth, async (user: import('@/lib/supabase/browser').CompatUser | null) => {
       setUser(user);
       if (user) {
-        const userDoc = await getDoc(doc(db, "profiles", user.uid));
-        if (userDoc.exists()) {
-            setUserProfile((userDoc.data() as HeaderUserProfile) || null);
+        const { data: userDoc, error } = await supabase.from("profiles").select("*").eq("id", user.uid).single();
+        if (!error && userDoc) {
+            setUserProfile((userDoc as HeaderUserProfile) || null);
         } else {
           setUserProfile({
             firstName: getUserFirstName(null, user),

@@ -1,8 +1,8 @@
 import { createClient, type AuthChangeEvent, type Session, type User as SupabaseUser } from "@supabase/supabase-js";
-import { doc, setDoc } from "@/lib/supabase-db";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 export const isSupabaseConfigured = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -201,13 +201,16 @@ export async function syncUserProfile(
     return false;
   }
 
-  await setDoc(doc(db, "profiles", user.uid), {
+  const { error } = await supabaseClient.from("profiles").upsert({
+    id: user.uid,
     firstName: profile.firstName || "",
     lastName: profile.lastName || "",
     email: profile.email || user.email || "",
     phone: profile.phone || "",
     role: profile.role || "user",
   });
+  
+  if (error) throw error;
 
   return true;
 }

@@ -6,7 +6,7 @@ import { buildStaffInvitationEmail, sendTransactionalEmail } from "@/lib/email";
 import { canonicalizeUserRole } from "@/lib/roles";
 import { requireAuthorizedUser, supabaseAdmin } from "@/lib/supabase/admin";
 import { COLLECTIONS } from "@/lib/types";
-import { buildInviteCallbackUrl, extractTokensFromInviteUrl, getBaseUrl, rewriteInviteVerifyRedirect } from "@/lib/url";
+import { getBaseUrl, rewriteInviteVerifyRedirect } from "@/lib/url";
 
 export const runtime = "nodejs";
 
@@ -110,10 +110,9 @@ async function resendStaffInvitation(request: Request, userId: string) {
 
   const metadata = (user.user_metadata || {}) as Record<string, unknown>;
   const fullName = String(metadata.full_name || metadata.display_name || metadata.displayName || "").trim();
-  const extractedTokens = extractTokensFromInviteUrl(generated.data.properties.action_link);
-  const hasNormalizedTokens = Boolean(extractedTokens.code || extractedTokens.accessToken || extractedTokens.tokenHash);
-  const inviteLink = hasNormalizedTokens
-    ? buildInviteCallbackUrl(baseUrl, extractedTokens, finalDestination)
+  const hashedToken = generated.data.properties.hashed_token;
+  const inviteLink = hashedToken
+    ? `${baseUrl}/auth/callback?token_hash=${encodeURIComponent(hashedToken)}&type=invite&next=${encodeURIComponent(finalDestination)}`
     : rewriteInviteVerifyRedirect(generated.data.properties.action_link, baseUrl, finalDestination);
 
   logInviteLinkWarning("invite-link-regenerated", {

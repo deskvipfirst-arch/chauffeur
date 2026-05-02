@@ -1,6 +1,5 @@
-import { findUserByEmail } from "@/lib/db/users";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { buildInviteCallbackUrl, extractTokensFromInviteUrl, getBaseUrl, rewriteInviteVerifyRedirect } from "@/lib/url";
+import { supabaseAdmin, findUserByEmail } from "@/lib/supabase/admin";
+import { buildInviteCallbackUrl, extractTokensFromInviteUrl, getBaseUrl } from "@/lib/url";
 
 interface InviteOptions {
   email: string;
@@ -63,27 +62,22 @@ export async function createInvite(options: InviteOptions, request?: Request) {
     throw new Error(error?.message || "Failed to generate invite link");
   }
 
-  logInviteService("create-invite-action-link", {
-    email: options.email,
-    role: options.role,
-    actionLink: data.properties.action_link,
-  });
-
-  const tokens = extractTokensFromInviteUrl(data.properties.action_link);
   const destination = options.role === "greeter" ? "/greeter/signin" : "/administrator/signin";
-  const hasNormalizedTokens = Boolean(tokens.code || tokens.accessToken || tokens.tokenHash);
-  const cleanInviteUrl = hasNormalizedTokens
-    ? buildInviteCallbackUrl(baseUrl, tokens, destination)
-    : rewriteInviteVerifyRedirect(data.properties.action_link, baseUrl, destination);
+
+  // Use hashed_token from generateLink to build a direct link to our own
+  // /auth/callback page. This bypasses Supabase's redirect mechanism entirely,
+  // avoiding broken redirects caused by Dashboard Site URL misconfiguration.
+  const hashedToken = data.properties.hashed_token;
+  const cleanInviteUrl = hashedToken
+    ? `${baseUrl}/auth/callback?token_hash=${encodeURIComponent(hashedToken)}&type=invite&next=${encodeURIComponent(destination)}`
+    : buildInviteCallbackUrl(baseUrl, extractTokensFromInviteUrl(data.properties.action_link), destination);
 
   logInviteService("create-invite-link", {
     email: options.email,
     role: options.role,
     destination,
-    hasAccessToken: Boolean(tokens.accessToken),
-    hasRefreshToken: Boolean(tokens.refreshToken),
-    hasTokenHash: Boolean(tokens.tokenHash),
-    tokenType: tokens.type || null,
+    hashedToken: Boolean(hashedToken),
+    inviteUrl: cleanInviteUrl,
   });
 
   return {

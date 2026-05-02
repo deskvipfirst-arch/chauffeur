@@ -60,16 +60,11 @@ export interface BookingData {
 export interface UserData {
   email: string;
   displayName?: string;
-  firstName?: string;
-  lastName?: string;
-  first_name?: string;
-  last_name?: string;
   phone?: string;
-  phoneNumber?: string;
   role?: 'USER' | 'ADMIN' | 'GREETER' | 'HEATHROW';
 }
 
-// Firestore Collections
+// Database Table Names
 export const COLLECTIONS = {
   LOCATIONS: 'locations',
   SERVICE_RATES: 'service_rates',

@@ -1,5 +1,4 @@
-import { db, getAccessToken } from "@/lib/supabase/browser";
-import { collection, getDocs, query, orderBy } from "@/lib/supabase-db";
+import { supabase, getAccessToken } from "@/lib/supabase/browser";
 import { Vehicle, Booking, Driver, DriverPayment, Location, ServicePricing, ExtraCharge, GreeterInvoice, OfficeStaff } from "@/types/admin";
 import { COLLECTIONS } from "@/lib/types";
 
@@ -9,14 +8,7 @@ type FetchResult<T> = {
   isLoading: boolean;
 };
 
-type VehicleDoc = Record<string, unknown>;
-type DriverPaymentDoc = Record<string, unknown>;
-type LocationDoc = {
-  name?: string;
-  status?: string;
-  isAirport?: boolean;
-  terminals?: string[];
-} & Record<string, unknown>;
+
 
 const asString = (value: unknown, fallback = "") =>
   typeof value === "string" ? value : fallback;
@@ -41,14 +33,16 @@ const asLocationStatus = (value: unknown): "active" | "inactive" =>
 export const fetchVehicles = async (): Promise<FetchResult<Vehicle>> => {
   let isLoading = true;
   try {
-    const vehiclesRef = collection(db, "vehicles");
-    const q = query(vehiclesRef, orderBy("base_price", "asc"));
-    const snapshot = await getDocs(q);
+    const { data: dbData, error } = await supabase
+      .from("vehicles")
+      .select("*")
+      .order("base_price", { ascending: true });
     
-    const data = snapshot.docs.map(doc => {
-      const vehicle = doc.data() as VehicleDoc;
+    if (error) throw error;
+
+    const data = dbData.map(vehicle => {
       return {
-        id: doc.id,
+        id: vehicle.id,
         title: asString(vehicle.title ?? vehicle.Title),
         name: asString(vehicle.name ?? vehicle.Name),
         description: asString(vehicle.description ?? vehicle.Description),
@@ -174,13 +168,16 @@ export const fetchDrivers = async (): Promise<FetchResult<Driver>> => {
 export const fetchDriverPayments = async (): Promise<FetchResult<DriverPayment>> => {
   let isLoading = true;
   try {
-    const paymentsRef = collection(db, COLLECTIONS.DRIVER_PAYMENTS);
-    const q = query(paymentsRef, orderBy("createdAt", "desc"));
-    const snapshot = await getDocs(q);
-    const data = snapshot.docs.map(doc => {
-      const payment = doc.data() as DriverPaymentDoc;
+    const { data: dbData, error } = await supabase
+      .from(COLLECTIONS.DRIVER_PAYMENTS)
+      .select("*")
+      .order("createdAt", { ascending: false });
+      
+    if (error) throw error;
+
+    const data = dbData.map(payment => {
       return {
-        id: doc.id,
+        id: payment.id,
         created_at: asString(payment.createdAt ?? payment.createdat),
         driver_id: asString(payment.driverId ?? payment.driverid),
         booking_id: asString(payment.bookingId ?? payment.bookingid),
@@ -226,15 +223,15 @@ export const fetchGreeterInvoices = async (): Promise<FetchResult<GreeterInvoice
 export const fetchLocations = async (): Promise<FetchResult<Location>> => {
   let isLoading = true;
   try {
-    const locationsRef = collection(db, "locations");
-    const snapshot = await getDocs(locationsRef);
-    const getLocationDoc = (input: unknown) => input as LocationDoc;
-    const data = snapshot.docs.map((doc, index) => ({
+    const { data: dbData, error } = await supabase.from("locations").select("*");
+    if (error) throw error;
+
+    const data = dbData.map((doc, index) => ({
       id: index + 1,
-      name: asString(getLocationDoc(doc.data())?.name),
-      status: asLocationStatus(getLocationDoc(doc.data())?.status),
-      isAirport: asBoolean(getLocationDoc(doc.data())?.isAirport),
-      terminals: asStringArray(getLocationDoc(doc.data())?.terminals)
+      name: asString(doc.name),
+      status: asLocationStatus(doc.status),
+      isAirport: asBoolean(doc.isAirport),
+      terminals: asStringArray(doc.terminals)
     }));
     isLoading = false;
     return { data, error: null, isLoading };

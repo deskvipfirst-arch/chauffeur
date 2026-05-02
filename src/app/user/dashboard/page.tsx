@@ -4,18 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, isAfter, subHours } from "date-fns";
 import { toast } from "sonner";
-import { auth, db } from "@/lib/supabase/browser";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  orderBy,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-} from "@/lib/supabase-db";
+import { auth, supabase } from "@/lib/supabase/browser";
 import { onAuthStateChanged } from "@/lib/supabase/browser";
 import { getUserDisplayName, getUserFirstName, getUserInitials } from "@/lib/userDisplay";
 import type { Booking } from "@/types/admin";
@@ -146,16 +135,9 @@ export default function CustomerDashboard() {
       setError(null);
 
       try {
-        const bookingsRef = collection(db, "bookings");
-        const bookingsQuery = query(
-          bookingsRef,
-          where("user_id", "==", nextUser.uid),
-          orderBy("date_time", "desc")
-        );
-
-        const [profileDoc, querySnapshot] = await Promise.all([
-          getDoc(doc(db, "profiles", nextUser.uid)),
-          getDocs(bookingsQuery),
+        const [profileRes, bookingsRes] = await Promise.all([
+          supabase.from("profiles").select("*").eq("id", nextUser.uid).single(),
+          supabase.from("bookings").select("*").eq("user_id", nextUser.uid).order("date_time", { ascending: false }),
         ]);
 
         const fallbackDisplayName = getUserDisplayName(null, nextUser);
@@ -168,21 +150,18 @@ export default function CustomerDashboard() {
           role: "user",
         };
 
-        if (profileDoc.exists()) {
-          setUserProfile({ ...fallbackProfile, ...(profileDoc.data() as DashboardUserProfile) });
+        if (!profileRes.error && profileRes.data) {
+          setUserProfile({ ...fallbackProfile, ...(profileRes.data as DashboardUserProfile) });
         } else {
           setUserProfile(fallbackProfile);
           try {
-            await setDoc(doc(db, "profiles", nextUser.uid), fallbackProfile);
+            await supabase.from("profiles").upsert({ id: nextUser.uid, ...fallbackProfile });
           } catch (profileError) {
             console.warn("Profile bootstrap warning:", profileError);
           }
         }
 
-        const bookingsData = querySnapshot.docs.map((item) => ({
-          id: item.id,
-          ...(item.data() as object),
-        })) as Booking[];
+        const bookingsData = (bookingsRes.data || []) as Booking[];
 
         setBookings(bookingsData);
 
@@ -219,9 +198,7 @@ export default function CustomerDashboard() {
 
   const handleCancelBooking = async (booking: Booking) => {
     try {
-      await updateDoc(doc(db, "bookings", booking.id), {
-        status: "cancelled",
-      });
+      await supabase.from("bookings").update({ status: "cancelled" }).eq("id", booking.id);
 
       setBookings((current) =>
         current.map((item) => (item.id === booking.id ? { ...item, status: "cancelled" } : item))
@@ -237,9 +214,7 @@ export default function CustomerDashboard() {
 
   const handleDeleteBooking = async (booking: Booking) => {
     try {
-      await updateDoc(doc(db, "bookings", booking.id), {
-        status: "deleted",
-      });
+      await supabase.from("bookings").update({ status: "deleted" }).eq("id", booking.id);
 
       setBookings((current) => current.filter((item) => item.id !== booking.id));
       setBookingToDelete(null);

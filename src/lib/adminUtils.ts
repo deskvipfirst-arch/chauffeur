@@ -1,5 +1,4 @@
-import { auth, db, getAccessToken } from "@/lib/supabase/browser";
-import { doc, getDoc } from "@/lib/supabase-db";
+import { auth, supabase, getAccessToken } from "@/lib/supabase/browser";
 import { canonicalizeUserRole, isAllowedRole } from "./roles";
 
 async function saveAdminRoleServerSide(email: string, password: string) {
@@ -36,9 +35,14 @@ export { canonicalizeUserRole, isAllowedRole } from "./roles";
 
 export async function getUserRole(userId: string) {
   try {
-    const userDoc = await getDoc(doc(db, "users", userId));
-    if (userDoc.exists()) {
-      return canonicalizeUserRole((userDoc.data() as { role?: string | null })?.role || null);
+    const { data: userData, error } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", userId)
+      .single();
+      
+    if (!error && userData) {
+      return canonicalizeUserRole(userData.role || null);
     }
 
     if (auth.currentUser?.uid === userId) {

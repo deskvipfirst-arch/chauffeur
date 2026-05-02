@@ -19,6 +19,9 @@
 
 # production
 /build
+/dist
+/test-results
+test_list.txt
 
 # misc
 .DS_Store

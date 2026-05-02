@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiErrorResponse } from "@/lib/api/errors";
 import { getRequestIp, rateLimitByKey } from "@/lib/api/rate-limit";
-import { requireAuth } from "@/lib/auth/middleware";
-import { createUserProfile } from "@/lib/db/users";
+import { requireAuthorizedUser, createUserProfile } from "@/lib/supabase/admin";
 import { buildStaffInvitationEmail, sendTransactionalEmail } from "@/lib/email";
 import { createInvite } from "@/lib/invites/service";
 import { canonicalizeUserRole } from "@/lib/roles";
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { user: adminUser } = await requireAuth(request, ["admin"]);
+    const adminUser = await requireAuthorizedUser(request.headers.get("authorization"), ["admin"]);
 
     const body = await request.json().catch(() => ({}));
     const email = String(body?.email || "").trim().toLowerCase();
@@ -72,11 +71,11 @@ export async function POST(request: Request) {
 
     await createUserProfile(user.id, {
       email,
-      role: role.toUpperCase(),
+      role: role.toUpperCase() as "USER" | "ADMIN" | "GREETER" | "HEATHROW",
       first_name: firstName || undefined,
       last_name: lastName || undefined,
       phone_number: phone || undefined,
-    });
+    } as any);
 
     const emailContent = buildStaffInvitationEmail({
       email,

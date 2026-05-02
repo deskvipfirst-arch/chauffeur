@@ -1,14 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db, getCurrentUser } from "@/lib/supabase/browser";
-import { doc, getDoc, setDoc } from "@/lib/supabase-db";
+import { supabase, getCurrentUser, updateProfile } from "@/lib/supabase/browser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icons } from "@/components/ui/icons";
-import { updateProfile } from "@/lib/supabase/browser";
 import { getUserDisplayName, getUserFirstName } from "@/lib/userDisplay";
 
 interface UserProfile {
@@ -46,14 +44,14 @@ export default function ProfilePage() {
       }
 
       try {
-        const profileDoc = await getDoc(doc(db, "profiles", user.uid));
+        const { data: profileDoc, error } = await supabase.from("profiles").select("*").eq("id", user.uid).single();
         const fallbackDisplayName = getUserDisplayName(null, user);
         const nameParts = fallbackDisplayName.split(/\s+/).filter(Boolean);
         const fallbackFirstName = getUserFirstName(null, user);
         const fallbackLastName = nameParts.slice(1).join(" ");
 
-        if (profileDoc.exists()) {
-          const data = profileDoc.data() as Partial<UserProfile>;
+        if (!error && profileDoc) {
+          const data = profileDoc as Partial<UserProfile>;
           setFormData({
             firstName: data.firstName || fallbackFirstName,
             lastName: data.lastName || fallbackLastName,
@@ -91,13 +89,15 @@ export default function ProfilePage() {
     }
 
     try {
-      await setDoc(doc(db, "profiles", user.uid), {
+      const { error: upsertError } = await supabase.from("profiles").upsert({
+        id: user.uid,
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: user.email || formData.email,
         phone: formData.phone,
         role: "user",
       });
+      if (upsertError) throw upsertError;
 
       // Update display name in Supabase Auth
       await updateProfile(user, {

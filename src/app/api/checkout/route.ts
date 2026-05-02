@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/supabase/admin";
 import { getBaseUrl } from "@/lib/url";
+import { rateLimitByKey, getRequestIp } from "@/lib/api/rate-limit";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -28,6 +29,16 @@ function generateBookingRef() {
 
 export async function POST(req: Request) {
   try {
+    const ip = getRequestIp(req);
+    const rateLimit = await rateLimitByKey(`checkout:${ip}`, 5, 60000);
+    
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Please try again in ${rateLimit.retryAfterSeconds} seconds.` },
+        { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+      );
+    }
+
     const { bookingDetails, amount, userId } = await req.json();
 
     // Validate environment variables

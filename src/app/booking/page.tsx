@@ -15,8 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { onAuthStateChanged } from "@/lib/supabase/browser";
-import { auth, db } from "@/lib/supabase/browser";
-import { doc, getDoc } from "@/lib/supabase-db";
+import { auth, supabase } from "@/lib/supabase/browser";
 import { Icons } from "@/components/ui/icons";
 import { loadStoredBookingDraft, saveStoredBookingDraft } from "@/lib/bookingFlow";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -110,29 +109,31 @@ function BookingContent() {
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       if (nextUser) {
-        getDoc(doc(db, "profiles", nextUser.uid))
-          .then((profileDoc) => {
-            const profile = (profileDoc.data() || {}) as BookingProfile;
-            const profileName = getUserDisplayName(profile, nextUser);
-            const phone = String(
-              profile.phone || profile.phoneNumber || profile.phone_number || ""
-            ).trim();
-
-            setBookingDetails((prev) => ({
-              ...prev,
-              fullName: prev.fullName || profileName,
-              email: prev.email || nextUser.email || "",
-              phone: prev.phone || phone,
-            }));
-          })
-          .catch((error) => {
+        (async () => {
+          const { data: profileDoc, error } = await supabase.from("profiles").select("*").eq("id", nextUser.uid).single();
+          if (error) {
             console.warn("Profile prefill warning:", error);
             setBookingDetails((prev) => ({
               ...prev,
               fullName: prev.fullName || getUserDisplayName(undefined, nextUser),
               email: prev.email || nextUser.email || "",
             }));
-          });
+            return;
+          }
+
+          const profile = (profileDoc || {}) as BookingProfile;
+          const profileName = getUserDisplayName(profile, nextUser);
+          const phone = String(
+            profile.phone || profile.phoneNumber || profile.phone_number || ""
+          ).trim();
+
+          setBookingDetails((prev) => ({
+            ...prev,
+            fullName: prev.fullName || profileName,
+            email: prev.email || nextUser.email || "",
+            phone: prev.phone || phone,
+          }));
+        })();
       }
     });
 

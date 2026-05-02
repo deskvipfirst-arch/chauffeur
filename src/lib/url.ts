@@ -107,7 +107,8 @@ export function buildInviteCallbackUrl(
 export function rewriteInviteVerifyRedirect(actionLink: string, baseUrl: string, nextPath?: string): string {
   try {
     const parsed = new URL(actionLink);
-    const callbackUrl = buildInviteCallbackUrl(baseUrl, {}, nextPath);
+    // Build a proper callback URL with the next param
+    const callbackUrl = `${baseUrl}/auth/callback${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`;
     parsed.searchParams.set("redirect_to", callbackUrl);
     return parsed.toString();
   } catch {

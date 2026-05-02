@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, updateDoc } from "@/lib/supabase-db";
-import { db } from "@/lib/supabase/browser";
+import { supabase } from "@/lib/supabase/browser";
 import { Booking } from "@/types/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,9 +33,8 @@ export default function EditBookingPage({
   useEffect(() => {
     const fetchBooking = async () => {
       try {
-        const bookingDoc = await getDoc(doc(db, "bookings", params.id));
-        if (bookingDoc.exists()) {
-          const bookingData = bookingDoc.data() as Booking;
+        const { data: bookingData, error } = await supabase.from("bookings").select("*").eq("id", params.id).single();
+        if (!error && bookingData) {
           setBooking(bookingData);
           const bookingDate = new Date(bookingData.date_time);
           setDate(format(bookingDate, "yyyy-MM-dd"));
@@ -71,10 +69,12 @@ export default function EditBookingPage({
         ...editableBooking
       } = booking as any;
 
-      await updateDoc(doc(db, "bookings", params.id), {
+      const { error: updateError } = await supabase.from("bookings").update({
         ...editableBooking,
         date_time: dateTime.toISOString(),
-      });
+      }).eq("id", params.id);
+      
+      if (updateError) throw updateError;
       toast.success("Booking updated successfully");
       router.push("/user/dashboard");
     } catch (error) {

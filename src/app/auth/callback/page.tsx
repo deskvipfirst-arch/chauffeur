@@ -19,6 +19,7 @@ function CallbackHandler() {
 
       const code = searchParams.get("code");
       const tokenHash = searchParams.get("token_hash");
+      const queryType = searchParams.get("type") || type || "invite";
       const next = searchParams.get("next") || "/";
       const isInviteNextPath = /^\/(greeter|administrator)\/signin$/i.test(next);
 
@@ -26,7 +27,7 @@ function CallbackHandler() {
         if (code) {
           const { data } = await supabase.auth.exchangeCodeForSession(code);
           const needsPasswordSetup = data?.user?.user_metadata?.needs_password_setup === true;
-          router.push(needsPasswordSetup || type === "invite" || isInviteNextPath ? "/auth/set-password" : next);
+          router.push(needsPasswordSetup || queryType === "invite" || isInviteNextPath ? "/auth/set-password" : next);
           return;
         }
 
@@ -36,9 +37,9 @@ function CallbackHandler() {
           return;
         }
 
-        if (tokenHash && type) {
-          await supabase.auth.verifyOtp({ token_hash: tokenHash, type: type as 'signup' | 'invite' | 'email_change' | 'recovery' });
-          router.push(type === "invite" ? "/auth/set-password" : next);
+        if (tokenHash) {
+          await supabase.auth.verifyOtp({ token_hash: tokenHash, type: queryType as 'signup' | 'invite' | 'email_change' | 'recovery' });
+          router.push(queryType === "invite" ? "/auth/set-password" : next);
           return;
         }
 

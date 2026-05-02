@@ -5,8 +5,7 @@ import { Input } from "@/components/ui/input";
 import { DriverPayment, Driver } from "@/types/admin";
 import { Label } from "../ui/label";
 import Notification from "@/components/ui/notification";
-import { db } from "@/lib/supabase/browser";
-import { collection, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from "@/lib/supabase-db";
+import { supabase } from "@/lib/supabase/browser";
 import { COLLECTIONS } from "@/lib/types";
 
 type DriverPaymentsTabProps = {
@@ -97,12 +96,12 @@ export default function DriverPaymentsTab({
       if (!newPayment.driver_id || !newPayment.booking_id || !newPayment.amount || Number(newPayment.amount) <= 0) {
         throw new Error("Please fill in all required fields correctly");
       }
-      const paymentsRef = collection(db, COLLECTIONS.DRIVER_PAYMENTS);
-      await addDoc(paymentsRef, {
+      const { error: insertError } = await supabase.from(COLLECTIONS.DRIVER_PAYMENTS).insert({
         ...newPayment,
         amount: Number(newPayment.amount),
-        created_at: serverTimestamp(),
+        created_at: new Date().toISOString(),
       });
+      if (insertError) throw insertError;
       closeAddPaymentModal();
     }, "Payment added successfully");
   };
@@ -117,11 +116,11 @@ export default function DriverPaymentsTab({
         throw new Error("Please fill in all required fields correctly");
       }
       const { id } = editingPayment;
-      const paymentRef = doc(db, COLLECTIONS.DRIVER_PAYMENTS, id);
-      await updateDoc(paymentRef, {
+      const { error: updateError } = await supabase.from(COLLECTIONS.DRIVER_PAYMENTS).update({
         ...editPaymentForm,
         amount: Number(editPaymentForm.amount),
-      });
+      }).eq("id", id);
+      if (updateError) throw updateError;
       closeEditPaymentModal();
     }, "Payment updated successfully");
   };
@@ -131,8 +130,8 @@ export default function DriverPaymentsTab({
       return;
     }
     await handleDatabaseOperation(async () => {
-      const paymentRef = doc(db, COLLECTIONS.DRIVER_PAYMENTS, paymentId);
-      await deleteDoc(paymentRef);
+      const { error: deleteError } = await supabase.from(COLLECTIONS.DRIVER_PAYMENTS).delete().eq("id", paymentId);
+      if (deleteError) throw deleteError;
     }, "Payment deleted successfully");
   };
 

@@ -1,15 +1,94 @@
 import { createClient } from "@supabase/supabase-js";
 import type { ExtraCharge, Location, ServiceRate, Vehicle, BookingData, UserData } from "@/lib/types";
 import { COLLECTIONS } from "@/lib/types";
-import { normalizeDbRow, sanitizeMutationPayload } from "@/lib/supabase-db";
 import { canonicalizeUserRole, isAllowedRole } from "@/lib/roles";
 
+type JsonObject = Record<string, unknown>;
+
+const APP_TO_DB_FIELD_ALIASES: Record<string, string> = {
+  firstName: "firstname",
+  lastName: "lastname",
+  first_name: "firstname",
+  last_name: "lastname",
+  createdAt: "createdat",
+  updatedAt: "updatedat",
+  isFirstAdmin: "isfirstadmin",
+  paymentDetails: "paymentdetails",
+  baseRate: "baserate",
+  driverId: "driverid",
+  bookingId: "bookingid",
+  paymentDate: "paymentdate",
+  paymentMethod: "paymentmethod",
+};
+
+const DB_TO_APP_FIELD_ALIASES: Record<string, string> = {
+  firstname: "firstName",
+  lastname: "lastName",
+  createdat: "createdAt",
+  updatedat: "updatedAt",
+  isfirstadmin: "isFirstAdmin",
+  paymentdetails: "paymentDetails",
+  baserate: "baseRate",
+  driverid: "driverId",
+  bookingid: "bookingId",
+  paymentdate: "paymentDate",
+  paymentmethod: "paymentMethod",
+  first_name: "firstName",
+  last_name: "lastName",
+  is_first_admin: "isFirstAdmin",
+  payment_details: "paymentDetails",
+  base_rate: "baseRate",
+  driver_id: "driverId",
+  booking_id: "bookingId",
+  payment_date: "paymentDate",
+  payment_method: "paymentMethod",
+};
+
+export function normalizeDbRow(row: unknown): JsonObject {
+  if (!row || typeof row !== "object" || Array.isArray(row)) {
+    return (row as JsonObject) || {};
+  }
+
+  const normalized = { ...(row as JsonObject) } as JsonObject;
+  for (const [dbField, appField] of Object.entries(DB_TO_APP_FIELD_ALIASES)) {
+    if (normalized[dbField] !== undefined && normalized[appField] === undefined) {
+      normalized[appField] = normalized[dbField];
+    }
+  }
+
+  if (normalized.createdat !== undefined) {
+    if (normalized.createdAt === undefined) normalized.createdAt = normalized.createdat;
+    if (normalized.created_at === undefined) normalized.created_at = normalized.createdat;
+  }
+
+  if (normalized.updatedat !== undefined) {
+    if (normalized.updatedAt === undefined) normalized.updatedAt = normalized.updatedat;
+    if (normalized.updated_at === undefined) normalized.updated_at = normalized.updatedat;
+  }
+
+  return normalized;
+}
+
+export function sanitizeMutationPayload(data: object) {
+  const payload = { ...(data as JsonObject) };
+
+  for (const [appField, dbField] of Object.entries(APP_TO_DB_FIELD_ALIASES)) {
+    if (payload[appField] !== undefined) {
+      if (payload[dbField] === undefined) {
+        payload[dbField] = payload[appField];
+      }
+      delete payload[appField];
+    }
+  }
+
+  return payload;
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const serviceRoleKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "placeholder-service-role-key";
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+if (!serviceRoleKey && typeof window === "undefined") {
+  console.warn("Missing SUPABASE_SERVICE_ROLE_KEY environment variable. Admin functions will fail.");
+}
 
 const GREETER_INVOICES_TABLE = "greeter_invoices";
 const APP_SETTINGS_TABLE = "app_settings";
@@ -650,3 +729,10 @@ export async function reviewGreeterInvoice(id: string, updates: DbRow): Promise<
 
   return data;
 }
+
+export async function findUserByEmail(email: string) {
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers();
+  if (error) throw error;
+  return data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+}
+

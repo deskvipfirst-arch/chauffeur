@@ -8,9 +8,9 @@ import { Vehicle } from "@/types/admin";
 import { Label } from "../ui/label";
 import Image from "next/image";
 import Notification from "@/components/ui/notification";
-import { db, storage } from "@/lib/supabase/browser";
-import { collection, addDoc, updateDoc, deleteDoc, doc } from "@/lib/supabase-db";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "@/lib/supabase-storage";
+import { supabase } from "@/lib/supabase/browser";
+
+const STORAGE_BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "uploads";
 
 type VehicleFormData = {
   title: string;
@@ -119,18 +119,20 @@ export default function VehiclesTab({
       if (newVehicleImage) {
         const fileExt = newVehicleImage.name.split(".").pop();
         const fileName = `vehicles/${Date.now()}.${fileExt}`;
-        const storageRef = ref(storage, fileName);
         
-        await uploadBytes(storageRef, newVehicleImage);
-        imageUrl = await getDownloadURL(storageRef);
+        const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, newVehicleImage, { upsert: true });
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+        imageUrl = data.publicUrl;
       }
 
-      const vehiclesRef = collection(db, "vehicles");
-      await addDoc(vehiclesRef, {
+      const { error: dbError } = await supabase.from("vehicles").insert({
         ...newVehicle,
         image_url: imageUrl || null,
         created_at: new Date().toISOString(),
       });
+      if (dbError) throw dbError;
 
       setShowAddVehicleModal(false);
       resetNewVehicleForm();
@@ -160,18 +162,20 @@ export default function VehiclesTab({
       if (editVehicleImage) {
         const fileExt = editVehicleImage.name.split(".").pop();
         const fileName = `vehicles/${Date.now()}.${fileExt}`;
-        const storageRef = ref(storage, fileName);
         
-        await uploadBytes(storageRef, editVehicleImage);
-        imageUrl = await getDownloadURL(storageRef);
+        const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, editVehicleImage, { upsert: true });
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+        imageUrl = data.publicUrl;
       }
 
       const { id, ...updateData } = editingVehicle;
-      const vehicleRef = doc(db, "vehicles", id);
-      await updateDoc(vehicleRef, {
+      const { error: dbError } = await supabase.from("vehicles").update({
         ...updateData,
         image_url: imageUrl || null,
-      });
+      }).eq("id", id);
+      if (dbError) throw dbError;
 
       setShowEditVehicleModal(false);
       setEditingVehicle(null);
@@ -188,15 +192,17 @@ export default function VehiclesTab({
       const vehicle = vehicles.find((v) => v.id === vehicleId);
       if (vehicle?.image_url) {
         try {
-          const imageRef = ref(storage, vehicle.image_url);
-          await deleteObject(imageRef);
+          const fileName = vehicle.image_url.split(`/${STORAGE_BUCKET}/`)[1];
+          if (fileName) {
+            await supabase.storage.from(STORAGE_BUCKET).remove([fileName]);
+          }
         } catch (error) {
           console.warn("Failed to delete associated image:", error);
         }
       }
 
-      const vehicleRef = doc(db, "vehicles", vehicleId);
-      await deleteDoc(vehicleRef);
+      const { error: dbError } = await supabase.from("vehicles").delete().eq("id", vehicleId);
+      if (dbError) throw dbError;
     }, "Vehicle deleted successfully");
   };
 

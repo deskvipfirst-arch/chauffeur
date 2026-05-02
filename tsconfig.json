@@ -11,8 +11,9 @@
     "sourceMap": true,
     "outDir": "./dist",
     "moduleResolution": "bundler",
-    "ignoreDeprecations": "6.0",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "removeComments": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -24,8 +25,6 @@
     "noFallthroughCasesInSwitch": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
     "resolveJsonModule": true,
     "baseUrl": ".",
     "jsx": "preserve",
@@ -39,6 +38,7 @@
     "noEmit": true,
     "incremental": true,
     "isolatedModules": true,
+    "ignoreDeprecations": "6.0",
     "plugins": [
       {
         "name": "next"
@@ -52,8 +52,6 @@
     "next-env.d.ts",
     "./src/**/*.ts",
     "./src/**/*.tsx",
-    "./@/**/*.ts",
-    "./@/**/*.tsx",
     "scripts/**/*.ts",
     ".next/types/**/*.ts"
   ]
