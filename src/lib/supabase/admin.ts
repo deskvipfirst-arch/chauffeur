@@ -148,6 +148,13 @@ function extractMissingColumn(error: { message?: string; details?: string } | nu
   return match?.[1] ?? null;
 }
 
+function extractNotNullColumn(error: { message?: string; details?: string; code?: string } | null) {
+  const errorText = `${error?.message ?? ""} ${error?.details ?? ""}`;
+  if (error?.code !== "23502") return null;
+  const match = errorText.match(/null value in column ['"]([^'"]+)['"]/i);
+  return match?.[1] ?? null;
+}
+
 export function shouldDropBookingUserId(error: { code?: string; message?: string; details?: string } | null) {
   const errorText = `${error?.message ?? ""} ${error?.details ?? ""}`;
   return error?.code === "23503" && /bookings_user_id_fkey/i.test(errorText);
@@ -496,7 +503,7 @@ export async function getDriverByEmail(email: string): Promise<DbRow | null> {
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.DRIVERS)
     .select("*")
-    .eq("email", normalizedEmail)
+    .ilike("email", normalizedEmail)
     .limit(1);
 
   if (error) throw error;
@@ -512,7 +519,7 @@ export async function updateDriverStatusByEmail(email: string, status: "active" 
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.DRIVERS)
     .update({ status })
-    .eq("email", normalizedEmail)
+    .ilike("email", normalizedEmail)
     .select("*");
 
   if (error) throw error;
@@ -531,19 +538,56 @@ export async function createDriverByEmail(email: string, status: "active" | "ina
   const firstName = firstNameRaw ? firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1) : "Greeter";
   const lastName = rest.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 
-  const { data, error } = await supabaseAdmin
-    .from(COLLECTIONS.DRIVERS)
-    .insert({
-      email: normalizedEmail,
-      status,
-      firstName,
-      lastName,
-    })
-    .select("*")
-    .maybeSingle();
+  let payload = sanitizeMutationPayload({
+    email: normalizedEmail,
+    status,
+    firstName,
+    lastName,
+  });
 
-  if (error) throw error;
-  return data ? normalizeDbRow(data) : null;
+  const fallbackValues: Record<string, unknown> = {
+    firstname: firstName,
+    lastname: lastName,
+    first_name: firstName,
+    last_name: lastName,
+    full_name: `${firstName} ${lastName}`.trim() || firstName,
+    phone: "",
+    paymentdetails: "",
+    payment_details: "",
+    status,
+    email: normalizedEmail,
+  };
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data, error } = await supabaseAdmin
+      .from(COLLECTIONS.DRIVERS)
+      .insert(payload)
+      .select("*")
+      .maybeSingle();
+
+    if (!error) {
+      return data ? normalizeDbRow(data) : null;
+    }
+
+    const missingColumn = extractMissingColumn(error);
+    if (missingColumn && missingColumn in payload) {
+      delete payload[missingColumn];
+      continue;
+    }
+
+    const notNullColumn = extractNotNullColumn(error);
+    if (notNullColumn && fallbackValues[notNullColumn] !== undefined) {
+      payload = {
+        ...payload,
+        [notNullColumn]: fallbackValues[notNullColumn],
+      };
+      continue;
+    }
+
+    throw error;
+  }
+
+  return null;
 }
 
 export async function getDriverById(id: string): Promise<DbRow | null> {

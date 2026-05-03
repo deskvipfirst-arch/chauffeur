@@ -53,6 +53,58 @@ type GreeterJob = {
   departure_flight?: string | null;
 } & Record<string, unknown>;
 
+type AvailabilityMode = "unavailable" | "all_day" | "range";
+type AvailabilityDayDraft = {
+  mode: AvailabilityMode;
+  startTime: string;
+  endTime: string;
+};
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function toMonthKey(date: Date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+}
+
+function buildMonthDays(monthKey: string) {
+  const [yearText, monthText] = monthKey.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return [] as string[];
+  }
+
+  const lastDay = new Date(year, month, 0).getDate();
+  const days: string[] = [];
+  for (let day = 1; day <= lastDay; day += 1) {
+    days.push(`${year}-${pad2(month)}-${pad2(day)}`);
+  }
+  return days;
+}
+
+function toAvailabilityDraft(input?: { available?: boolean; mode?: "all_day" | "range"; startTime?: string | null; endTime?: string | null; }) {
+  if (!input?.available) {
+    return { mode: "unavailable", startTime: "09:00", endTime: "17:00" } as AvailabilityDayDraft;
+  }
+
+  if (input.mode === "range") {
+    return {
+      mode: "range",
+      startTime: input.startTime || "09:00",
+      endTime: input.endTime || "17:00",
+    } as AvailabilityDayDraft;
+  }
+
+  return { mode: "all_day", startTime: "09:00", endTime: "17:00" } as AvailabilityDayDraft;
+}
+
+function formatPlannerDate(dateKey: string) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+
 const STATUS_STEPS = ["assigned", "accepted", "picked_up", "completed"] as const;
 type StatusStep = (typeof STATUS_STEPS)[number];
 
@@ -189,6 +241,11 @@ export default function GreeterDashboardPage() {
   const [expandedInvoice, setExpandedInvoice] = useState<Record<string, boolean>>({});
   const [availabilityStatus, setAvailabilityStatus] = useState<"active" | "inactive">("inactive");
   const [isUpdatingAvailability, setIsUpdatingAvailability] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => toMonthKey(new Date()));
+  const [availabilityPlanner, setAvailabilityPlanner] = useState<Record<string, AvailabilityDayDraft>>({});
+  const [scheduleWindowStart, setScheduleWindowStart] = useState(0);
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
+  const [savingScheduleDate, setSavingScheduleDate] = useState<string | null>(null);
 
   const loadJobs = useCallback(async (email?: string | null) => {
     if (!email) {
@@ -257,6 +314,58 @@ export default function GreeterDashboardPage() {
     }
   }, []);
 
+  const loadAvailabilitySchedule = useCallback(async (email?: string | null, monthKey?: string) => {
+    if (!email || !monthKey) {
+      setAvailabilityPlanner({});
+      return;
+    }
+
+    const monthDays = buildMonthDays(monthKey);
+    if (monthDays.length === 0) {
+      setAvailabilityPlanner({});
+      return;
+    }
+
+    const from = monthDays[0];
+    const to = monthDays[monthDays.length - 1];
+    setIsLoadingSchedule(true);
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(
+        `/api/greeter/availability/schedule?email=${encodeURIComponent(email)}&from=${from}&to=${to}`,
+        {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch availability planner");
+      }
+
+      const payload = (await response.json()) as {
+        days?: Array<{ date?: string; available?: boolean; mode?: "all_day" | "range"; startTime?: string | null; endTime?: string | null }>;
+      };
+
+      const nextPlanner: Record<string, AvailabilityDayDraft> = Object.fromEntries(
+        monthDays.map((dateKey) => [dateKey, toAvailabilityDraft({ available: false })])
+      );
+
+      for (const day of payload.days || []) {
+        const dateKey = String(day?.date || "").trim();
+        if (!dateKey || !nextPlanner[dateKey]) continue;
+        nextPlanner[dateKey] = toAvailabilityDraft(day);
+      }
+
+      setAvailabilityPlanner(nextPlanner);
+    } catch {
+      setAvailabilityPlanner(Object.fromEntries(monthDays.map((dateKey) => [dateKey, toAvailabilityDraft({ available: false })])));
+    } finally {
+      setIsLoadingSchedule(false);
+    }
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
@@ -277,11 +386,17 @@ export default function GreeterDashboardPage() {
         loadJobs(nextUser.email),
         loadInvoices(nextUser.email),
         loadAvailability(nextUser.email),
+        loadAvailabilitySchedule(nextUser.email, selectedMonth),
       ]);
     });
 
     return () => unsubscribe();
-  }, [loadAvailability, loadInvoices, loadJobs, router]);
+  }, [loadAvailability, loadAvailabilitySchedule, loadInvoices, loadJobs, router, selectedMonth]);
+
+  useEffect(() => {
+    if (!user?.email) return;
+    void loadAvailabilitySchedule(user.email, selectedMonth);
+  }, [loadAvailabilitySchedule, selectedMonth, user?.email]);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -446,6 +561,67 @@ export default function GreeterDashboardPage() {
     }
   };
 
+  const handleScheduleFieldChange = (dateKey: string, patch: Partial<AvailabilityDayDraft>) => {
+    setAvailabilityPlanner((current) => {
+      const base = current[dateKey] || toAvailabilityDraft({ available: false });
+      return {
+        ...current,
+        [dateKey]: {
+          ...base,
+          ...patch,
+        },
+      };
+    });
+  };
+
+  const handleSaveScheduleDay = async (dateKey: string) => {
+    if (!user?.email || savingScheduleDate) return;
+
+    const draft = availabilityPlanner[dateKey] || toAvailabilityDraft({ available: false });
+    if (draft.mode === "range" && (!draft.startTime || !draft.endTime || draft.startTime >= draft.endTime)) {
+      toast.error("Enter a valid time range");
+      return;
+    }
+
+    const previous = availabilityPlanner[dateKey] || toAvailabilityDraft({ available: false });
+    setSavingScheduleDate(dateKey);
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch("/api/greeter/availability/schedule", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          email: user.email,
+          days: [
+            {
+              date: dateKey,
+              available: draft.mode !== "unavailable",
+              mode: draft.mode === "range" ? "range" : "all_day",
+              startTime: draft.mode === "range" ? draft.startTime : null,
+              endTime: draft.mode === "range" ? draft.endTime : null,
+            },
+          ],
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to save day availability");
+      }
+
+      toast.success(`Availability saved for ${formatPlannerDate(dateKey)}`);
+    } catch (error: unknown) {
+      setAvailabilityPlanner((current) => ({ ...current, [dateKey]: previous }));
+      toast.error(error instanceof Error ? error.message : "Failed to save day availability");
+    } finally {
+      setSavingScheduleDate(null);
+    }
+  };
+
   const handleLogout = async () => {
     await auth.signOut();
     router.push("/user/signin");
@@ -461,6 +637,13 @@ export default function GreeterDashboardPage() {
   const pendingJobs = jobs.filter((j) => (j.driver_status || j.status || "assigned") === "assigned").length;
   const todayStr = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   const isAvailable = availabilityStatus === "active";
+  const monthDays = useMemo(() => buildMonthDays(selectedMonth), [selectedMonth]);
+  const maxWindowStart = Math.max(0, monthDays.length - 7);
+  const visibleScheduleDays = monthDays.slice(scheduleWindowStart, scheduleWindowStart + 7);
+
+  useEffect(() => {
+    setScheduleWindowStart((current) => Math.min(current, maxWindowStart));
+  }, [maxWindowStart]);
 
   const nextJob = useMemo(() => {
     const sorted = [...jobs].sort((a, b) => {
@@ -533,6 +716,116 @@ export default function GreeterDashboardPage() {
             </div>
           </Card>
         </div>
+
+        <Card className="mb-6 border-slate-200 bg-white p-4 shadow-sm sm:mb-8 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Availability planner</h2>
+              <p className="text-xs text-slate-500 sm:text-sm">
+                Set your monthly availability. We display 7 days at a time for quick updates.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="availability-month" className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                Month
+              </label>
+              <input
+                id="availability-month"
+                type="month"
+                value={selectedMonth}
+                onChange={(event) => {
+                  setSelectedMonth(event.target.value);
+                  setScheduleWindowStart(0);
+                }}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={scheduleWindowStart === 0}
+              onClick={() => setScheduleWindowStart((current) => Math.max(0, current - 7))}
+            >
+              Previous 7 days
+            </Button>
+            <span className="text-xs text-slate-500">
+              {visibleScheduleDays.length > 0
+                ? `${formatPlannerDate(visibleScheduleDays[0])} - ${formatPlannerDate(visibleScheduleDays[visibleScheduleDays.length - 1])}`
+                : "No dates"}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={scheduleWindowStart >= maxWindowStart}
+              onClick={() => setScheduleWindowStart((current) => Math.min(maxWindowStart, current + 7))}
+            >
+              Next 7 days
+            </Button>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {visibleScheduleDays.map((dateKey) => {
+              const draft = availabilityPlanner[dateKey] || toAvailabilityDraft({ available: false });
+              const isSaving = savingScheduleDate === dateKey;
+
+              return (
+                <div key={dateKey} className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+                  <div className="grid gap-3 sm:grid-cols-[170px_1fr_auto] sm:items-end">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{formatPlannerDate(dateKey)}</p>
+                      <p className="text-xs text-slate-500">{dateKey}</p>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-[180px_1fr_1fr]">
+                      <select
+                        value={draft.mode}
+                        onChange={(event) =>
+                          handleScheduleFieldChange(dateKey, { mode: event.target.value as AvailabilityMode })
+                        }
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="unavailable">Unavailable</option>
+                        <option value="all_day">Available all day</option>
+                        <option value="range">Available between times</option>
+                      </select>
+
+                      <input
+                        type="time"
+                        value={draft.startTime}
+                        disabled={draft.mode !== "range"}
+                        onChange={(event) => handleScheduleFieldChange(dateKey, { startTime: event.target.value })}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-50"
+                      />
+
+                      <input
+                        type="time"
+                        value={draft.endTime}
+                        disabled={draft.mode !== "range"}
+                        onChange={(event) => handleScheduleFieldChange(dateKey, { endTime: event.target.value })}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-50"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void handleSaveScheduleDay(dateKey)}
+                      disabled={isLoadingSchedule || isSaving}
+                      className="bg-slate-900 text-white hover:bg-slate-800"
+                    >
+                      {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save day"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
 
         <div className="mb-6 grid gap-3 sm:mb-8 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard

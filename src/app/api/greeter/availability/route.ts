@@ -72,6 +72,9 @@ export async function PATCH(request: NextRequest) {
         updated = await updateDriverStatusByEmail(effectiveEmail, nextStatus);
       }
     }
+    if (!updated) {
+      throw new Error("Unable to persist greeter availability status");
+    }
     const status = String(updated?.status || nextStatus).toLowerCase() === "active" ? "active" : "inactive";
 
     return NextResponse.json({
