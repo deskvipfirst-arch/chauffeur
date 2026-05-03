@@ -59,7 +59,7 @@ export function Header() {
     const unsubscribe = onAuthStateChanged(auth, async (user: import('@/lib/supabase/browser').CompatUser | null) => {
       setUser(user);
       if (user) {
-        const { data: userDoc, error } = await supabase.from("profiles").select("*").eq("id", user.uid).single();
+        const { data: userDoc, error } = await supabase.from("profiles").select("*").eq("id", user.uid).maybeSingle();
         if (!error && userDoc) {
             setUserProfile((userDoc as HeaderUserProfile) || null);
         } else {

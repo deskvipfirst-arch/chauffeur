@@ -1,11 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, getAccessToken } from "@/lib/supabase/browser";
 import { onAuthStateChanged } from "@/lib/supabase/browser";
 import { Button } from "@/components/ui/button";
-import { Loader2, LogOut, RefreshCw, Plane, MapPin, Users, Clock, CheckCircle2, ChevronDown, ChevronUp, FileText, ArrowRight } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import {
+  Loader2,
+  LogOut,
+  RefreshCw,
+  Plane,
+  MapPin,
+  Users,
+  Clock,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  ArrowRight,
+  CalendarDays,
+  Navigation,
+} from "lucide-react";
 
 import { getGreeterActionConfig, getGreeterStatusLabel } from "@/lib/greeterUi";
 import { createPollingInterval, shouldRefreshOnVisibility } from "@/lib/liveJobs";
@@ -36,9 +53,7 @@ type GreeterJob = {
   departure_flight?: string | null;
 } & Record<string, unknown>;
 
-// ── Status config ────────────────────────────────────────────────────────────
 const STATUS_STEPS = ["assigned", "accepted", "picked_up", "completed"] as const;
-
 type StatusStep = (typeof STATUS_STEPS)[number];
 
 function getStatusStepIndex(status: string): number {
@@ -59,38 +74,107 @@ function getStatusColor(status: string): string {
   return map[status] ?? "bg-slate-100 text-slate-600 border-slate-300";
 }
 
-function getCardAccent(status: string): string {
+function getCardHighlight(status: string): string {
   const map: Record<string, string> = {
-    assigned: "border-l-amber-400",
-    accepted: "border-l-blue-500",
-    picked_up: "border-l-violet-500",
-    completed: "border-l-emerald-500",
-    confirmed: "border-l-emerald-500",
-    cancelled: "border-l-red-400",
-    pending: "border-l-slate-300",
+    assigned: "bg-amber-50/60",
+    accepted: "bg-blue-50/60",
+    picked_up: "bg-violet-50/60",
+    completed: "bg-emerald-50/60",
   };
-  return map[status] ?? "border-l-slate-300";
+  return map[status] ?? "bg-white";
 }
 
 function getStepLabel(step: string): string {
   const labels: Record<string, string> = {
     assigned: "Assigned",
     accepted: "Accepted",
-    picked_up: "Picked Up",
+    picked_up: "Picked up",
     completed: "Done",
   };
   return labels[step] ?? step;
 }
 
-function getGreeterInitials(email: string): string {
-  const parts = email.split("@")[0].split(/[._-]/);
-  return parts
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("");
+function getGreeterName(user: CompatUser | null): string {
+  const raw = user?.displayName?.trim() || user?.email?.split("@")[0] || "Greeter";
+  return raw
+    .split(/[._-]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function formatCurrency(value?: number | string): string {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return "TBC";
+  }
+  return new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatJobTime(dateTime?: string): string {
+  if (!dateTime) return "TBC";
+  return new Date(dateTime).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatJobDate(dateTime?: string): string {
+  if (!dateTime) return "Schedule pending";
+  return new Date(dateTime).toLocaleString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getStatusTone(status: string): string {
+  if (["accepted", "picked_up"].includes(status)) return "text-blue-600";
+  if (status === "completed") return "text-emerald-600";
+  return "text-amber-600";
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  tone = "text-slate-900",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone?: string;
+}) {
+  return (
+    <Card className="border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-700 sm:h-11 sm:w-11">
+          {icon}
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500 sm:text-[11px]">{label}</div>
+          <div className={`text-xl font-semibold sm:text-2xl ${tone}`}>{value}</div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function DetailRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex justify-between gap-4 border-b border-slate-100 py-3 last:border-b-0 last:pb-0">
+      <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{k}</span>
+      <span className="max-w-[62%] text-right text-sm text-slate-800">{v}</span>
+    </div>
+  );
+}
+
 export default function GreeterDashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<CompatUser | null>(null);
@@ -103,6 +187,8 @@ export default function GreeterDashboardPage() {
   const [invoicesByBooking, setInvoicesByBooking] = useState<Record<string, GreeterInvoice>>({});
   const [invoiceDrafts, setInvoiceDrafts] = useState<Record<string, { amount: string; notes: string }>>({});
   const [expandedInvoice, setExpandedInvoice] = useState<Record<string, boolean>>({});
+  const [availabilityStatus, setAvailabilityStatus] = useState<"active" | "inactive">("inactive");
+  const [isUpdatingAvailability, setIsUpdatingAvailability] = useState(false);
 
   const loadJobs = useCallback(async (email?: string | null) => {
     if (!email) {
@@ -148,6 +234,29 @@ export default function GreeterDashboardPage() {
     }
   }, []);
 
+  const loadAvailability = useCallback(async (email?: string | null) => {
+    if (!email) {
+      setAvailabilityStatus("inactive");
+      return;
+    }
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`/api/greeter/availability?email=${encodeURIComponent(email)}`, {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as { status?: string };
+      const nextStatus = payload?.status === "active" ? "active" : "inactive";
+      setAvailabilityStatus(nextStatus);
+    } catch {
+      setAvailabilityStatus("inactive");
+    }
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
@@ -164,21 +273,26 @@ export default function GreeterDashboardPage() {
         return;
       }
 
-      await Promise.all([loadJobs(nextUser.email), loadInvoices(nextUser.email)]);
+      await Promise.all([
+        loadJobs(nextUser.email),
+        loadInvoices(nextUser.email),
+        loadAvailability(nextUser.email),
+      ]);
     });
 
     return () => unsubscribe();
-  }, [loadInvoices, loadJobs, router]);
+  }, [loadAvailability, loadInvoices, loadJobs, router]);
 
   useEffect(() => {
     if (!user?.email) return;
 
     const stopPolling = createPollingInterval(() => {
-      void Promise.all([loadJobs(user.email), loadInvoices(user.email)]);
+      void Promise.all([loadJobs(user.email), loadInvoices(user.email), loadAvailability(user.email)]);
     }, 10000);
+
     const onVisibilityChange = () => {
       if (shouldRefreshOnVisibility(document.visibilityState)) {
-        void Promise.all([loadJobs(user.email), loadInvoices(user.email)]);
+        void Promise.all([loadJobs(user.email), loadInvoices(user.email), loadAvailability(user.email)]);
       }
     };
 
@@ -188,7 +302,7 @@ export default function GreeterDashboardPage() {
       stopPolling();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [loadInvoices, loadJobs, user?.email]);
+  }, [loadAvailability, loadInvoices, loadJobs, user?.email]);
 
   useEffect(() => {
     const loadFlightStatuses = async () => {
@@ -294,9 +408,41 @@ export default function GreeterDashboardPage() {
     if (!user?.email || isRefreshing) return;
     setIsRefreshing(true);
     try {
-      await Promise.all([loadJobs(user.email), loadInvoices(user.email)]);
+      await Promise.all([loadJobs(user.email), loadInvoices(user.email), loadAvailability(user.email)]);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleAvailabilityToggle = async (checked: boolean) => {
+    if (!user?.email || isUpdatingAvailability) return;
+
+    const previousStatus = availabilityStatus;
+    const nextStatus = checked ? "active" : "inactive";
+    setAvailabilityStatus(nextStatus);
+    setIsUpdatingAvailability(true);
+
+    try {
+      const token = await getAccessToken();
+      const response = await fetch("/api/greeter/availability", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ email: user.email, available: checked }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to update availability");
+      }
+      setAvailabilityStatus(payload?.status === "active" ? "active" : "inactive");
+      toast.success(checked ? "Status set to Available" : "Status set to Unavailable");
+    } catch (error: unknown) {
+      setAvailabilityStatus(previousStatus);
+      toast.error(error instanceof Error ? error.message : "Failed to update availability");
+    } finally {
+      setIsUpdatingAvailability(false);
     }
   };
 
@@ -305,359 +451,396 @@ export default function GreeterDashboardPage() {
     router.push("/user/signin");
   };
 
-  // ── Derived stats ─────────────────────────────────────────────────────────
+  const greeterName = getGreeterName(user);
   const totalJobs = jobs.length;
   const completedJobs = jobs.filter((j) => (j.driver_status || j.status) === "completed").length;
   const activeJobs = jobs.filter((j) => {
-    const s = j.driver_status || j.status || "";
-    return ["accepted", "picked_up"].includes(s);
+    const status = j.driver_status || j.status || "";
+    return ["accepted", "picked_up"].includes(status);
   }).length;
   const pendingJobs = jobs.filter((j) => (j.driver_status || j.status || "assigned") === "assigned").length;
-
   const todayStr = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-  const initials = user?.email ? getGreeterInitials(user.email) : "VG";
+  const isAvailable = availabilityStatus === "active";
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const nextJob = useMemo(() => {
+    const sorted = [...jobs].sort((a, b) => {
+      const aDate = a.date_time ? new Date(a.date_time).getTime() : Number.MAX_SAFE_INTEGER;
+      const bDate = b.date_time ? new Date(b.date_time).getTime() : Number.MAX_SAFE_INTEGER;
+      return aDate - bDate;
+    });
+    return sorted.find((job) => (job.driver_status || job.status || "assigned") !== "completed") || sorted[0] || null;
+  }, [jobs]);
+
   return (
-    <div className="min-h-screen bg-slate-100">
-      {/* ── Top header bar ─────────────────────────────────────────────── */}
-      <header className="bg-slate-900 text-white">
-        <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between gap-4">
-            {/* Left: brand + identity */}
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold text-slate-900">
-                {initials}
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-amber-400">VIP Greeters</p>
-                <p className="text-sm font-medium text-slate-200 leading-tight">{user?.email ?? "Loading…"}</p>
-              </div>
-            </div>
-
-            {/* Right: date + actions */}
-            <div className="flex items-center gap-2">
-              <span className="hidden text-xs text-slate-400 sm:block">{todayStr}</span>
-              <button
-                onClick={() => void handleManualRefresh()}
-                disabled={isRefreshing}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-700 hover:text-white disabled:opacity-40"
-                aria-label="Refresh"
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              </button>
-              <button
-                onClick={() => void handleLogout()}
-                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 hover:text-white"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                Sign out
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* ── Stats strip ────────────────────────────────────────────────── */}
-      <div className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6">
-          <div className="grid grid-cols-4 divide-x divide-slate-100">
-            {[
-              { label: "Total", value: totalJobs, color: "text-slate-700" },
-              { label: "Pending", value: pendingJobs, color: "text-amber-600" },
-              { label: "Active", value: activeJobs, color: "text-blue-600" },
-              { label: "Done", value: completedJobs, color: "text-emerald-600" },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="py-3 text-center">
-                <p className={`text-2xl font-bold tabular-nums ${color}`}>{value}</p>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Main content ───────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        {isLoading ? (
-          /* Loading skeletons */
-          <div className="space-y-4">
-            {[1, 2].map((n) => (
-              <div key={n} className="h-48 animate-pulse rounded-xl bg-white shadow-sm" />
-            ))}
-          </div>
-        ) : jobs.length === 0 ? (
-          /* Empty state */
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-20 text-center shadow-sm">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-              <CheckCircle2 className="h-8 w-8 text-slate-400" />
-            </div>
-            <h2 className="mt-4 text-lg font-semibold text-slate-800">No jobs assigned yet</h2>
-            <p className="mt-1 max-w-xs text-sm text-slate-500">
-              The office will assign bookings to you. They will appear here in real time.
+    <section className="min-h-screen bg-slate-100 px-4 pb-16 pt-20 sm:px-6 sm:pt-24">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-8 flex flex-col gap-4 sm:mb-10 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 text-xs uppercase tracking-[0.34em] text-amber-600">Greeter Operations</div>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
+              Hello, <span className="text-slate-700">{greeterName}</span>
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">
+              {totalJobs === 0
+                ? "No active assignments yet. New work appears here automatically."
+                : `${totalJobs} assignments today · ${pendingJobs} waiting response · ${activeJobs} live now`}
             </p>
           </div>
+
+          <Card className="w-full border-slate-200 bg-white p-4 shadow-sm sm:w-auto sm:min-w-[340px]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Availability</p>
+                <p className={`mt-1 text-sm font-semibold ${isAvailable ? "text-emerald-700" : "text-rose-700"}`}>
+                  {isAvailable ? "Available" : "Unavailable"}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Office can only assign jobs when you are marked Available.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={isAvailable}
+                  onCheckedChange={(checked: boolean) => {
+                    void handleAvailabilityToggle(checked);
+                  }}
+                  disabled={isUpdatingAvailability}
+                />
+                {isUpdatingAvailability ? <Loader2 className="h-4 w-4 animate-spin text-slate-500" /> : null}
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleManualRefresh()}
+                disabled={isRefreshing}
+                className="border-slate-300 bg-white"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleLogout()}
+                className="text-slate-600"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        <div className="mb-6 grid gap-3 sm:mb-8 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            label="Duty status"
+            value={isAvailable ? "Available" : "Unavailable"}
+            tone={isAvailable ? "text-emerald-700" : "text-rose-700"}
+          />
+          <StatCard icon={<CalendarDays className="h-5 w-5" />} label="Jobs today" value={String(totalJobs)} />
+          <StatCard icon={<Clock className="h-5 w-5" />} label="Awaiting response" value={String(pendingJobs)} />
+          <StatCard icon={<Users className="h-5 w-5" />} label="Completed" value={String(completedJobs)} />
+        </div>
+
+        {isLoading ? (
+          <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+            <div className="h-[24rem] animate-pulse rounded-3xl bg-white shadow-sm sm:h-[28rem]" />
+            <div className="h-[22rem] animate-pulse rounded-3xl bg-white shadow-sm sm:h-[28rem]" />
+          </div>
+        ) : totalJobs === 0 ? (
+          <Card className="rounded-3xl border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm sm:py-20">
+            <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-slate-100 text-slate-500">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-semibold text-slate-900">No assignments on your board</h2>
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+              When the office assigns a meet and greet, this dashboard will show live timings, flight details, and invoicing actions.
+            </p>
+          </Card>
         ) : (
-          /* Job list */
-          <div className="space-y-4">
-            {jobs.map((job) => {
-              const currentStatus = job.driver_status || job.status || "assigned";
-              const nextAction = getGreeterActionConfig(currentStatus);
-              const stepIdx = getStatusStepIndex(currentStatus);
-              const flight = getPrimaryFlightNumber(job);
-              const flightInfo = flight ? flightStatuses[flight] : null;
-              const invoice = invoicesByBooking[job.id];
-              const canSubmit = canGreeterSubmitInvoice(currentStatus, Boolean(invoice));
-              const draft = invoiceDrafts[job.id] ?? {
-                amount: job.amount ? String(job.amount) : "",
-                notes: "",
-              };
-              const isInvoiceExpanded = expandedInvoice[job.id] ?? false;
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.35fr_1fr]">
+            <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white p-0 shadow-sm">
+              <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+                <div>
+                  <h3 className="text-xl font-semibold text-slate-900 sm:text-2xl">Today's roster</h3>
+                  <p className="mt-1 text-xs text-slate-500 sm:text-sm">Assigned meet-and-greet movements for {todayStr}</p>
+                </div>
+                <div className="w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-amber-700 sm:text-[11px]">
+                  {totalJobs} jobs
+                </div>
+              </div>
 
-              return (
-                <article
-                  key={job.id}
-                  className={`overflow-hidden rounded-xl border-l-4 bg-white shadow-sm transition-shadow hover:shadow-md ${getCardAccent(currentStatus)}`}
-                >
-                  {/* Card header */}
-                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-bold tracking-wide text-slate-800">
-                          {job.booking_ref || "—"}
-                        </span>
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${getStatusColor(currentStatus)}`}
-                        >
-                          {getGreeterStatusLabel(currentStatus)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-base font-semibold text-slate-900">
-                        {job.full_name || "Guest passenger"}
-                      </p>
-                    </div>
+              <div className="divide-y divide-slate-200">
+                {jobs.map((job) => {
+                  const currentStatus = job.driver_status || job.status || "assigned";
+                  const nextAction = getGreeterActionConfig(currentStatus);
+                  const stepIdx = getStatusStepIndex(currentStatus);
+                  const flight = getPrimaryFlightNumber(job);
+                  const flightInfo = flight ? flightStatuses[flight] : null;
+                  const invoice = invoicesByBooking[job.id];
+                  const canSubmit = canGreeterSubmitInvoice(currentStatus, Boolean(invoice));
+                  const draft = invoiceDrafts[job.id] ?? {
+                    amount: job.amount ? String(job.amount) : "",
+                    notes: "",
+                  };
+                  const isInvoiceExpanded = expandedInvoice[job.id] ?? false;
+                  const isFeatured = nextJob?.id === job.id;
 
-                    {/* Service type pill */}
-                    {job.service_type && (
-                      <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-                        {job.service_type}
-                      </span>
-                    )}
-                  </div>
+                  return (
+                    <div key={job.id} className={`p-4 sm:p-6 ${isFeatured ? getCardHighlight(currentStatus) : "bg-white"}`}>
+                      <div className="flex flex-col gap-4 sm:gap-5">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="flex min-w-0 gap-4 sm:gap-5">
+                            <div className="min-w-[64px] text-center sm:min-w-[72px]">
+                              <div className={`text-xl font-semibold sm:text-2xl ${getStatusTone(currentStatus)}`}>{formatJobTime(job.date_time)}</div>
+                              <div className="mt-1 text-[10px] uppercase tracking-[0.22em] text-slate-500">
+                                {job.booking_ref || job.id.slice(0, 8)}
+                              </div>
+                            </div>
 
-                  {/* Card body */}
-                  <div className="px-5 py-4 space-y-4">
-                    {/* Date + passengers row */}
-                    <div className="flex flex-wrap gap-4 text-sm text-slate-600">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-4 w-4 shrink-0 text-slate-400" />
-                        <span>
-                          {job.date_time
-                            ? new Date(job.date_time).toLocaleString("en-GB", {
-                                weekday: "short",
-                                day: "numeric",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "TBC"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Users className="h-4 w-4 shrink-0 text-slate-400" />
-                        <span>{job.passengers ?? 1} passenger{(job.passengers ?? 1) !== 1 ? "s" : ""}</span>
-                      </div>
-                      {flight && (
-                        <div className="flex items-center gap-1.5">
-                          <Plane className="h-4 w-4 shrink-0 text-slate-400" />
-                          <span className="font-medium">{flight}</span>
-                          {flightInfo && (
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                flightInfo.source === "remote"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {flightInfo.status}
-                              {flightInfo.terminal ? ` · T${flightInfo.terminal}` : ""}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Route */}
-                    <div className="flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-sm">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-                        <span className="truncate font-medium text-slate-800">{job.pickup_location || "—"}</span>
-                        <ArrowRight className="hidden h-3.5 w-3.5 shrink-0 text-slate-400 sm:block" />
-                        <span className="truncate text-slate-600">{job.dropoff_location || "No dropoff"}</span>
-                      </div>
-                    </div>
-
-                    {/* Progress timeline */}
-                    <div className="py-1">
-                      <div className="flex items-center">
-                        {STATUS_STEPS.map((step, i) => {
-                          const done = i < stepIdx;
-                          const current = i === stepIdx;
-                          return (
-                            <div key={step} className="flex flex-1 items-center last:flex-none">
-                              <div className="flex flex-col items-center">
-                                <div
-                                  className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
-                                    done
-                                      ? "border-emerald-500 bg-emerald-500 text-white"
-                                      : current
-                                      ? "border-amber-500 bg-amber-50 text-amber-600"
-                                      : "border-slate-200 bg-white text-slate-300"
-                                  }`}
-                                >
-                                  {done ? "✓" : i + 1}
-                                </div>
-                                <span
-                                  className={`mt-1 text-[10px] font-medium ${
-                                    done
-                                      ? "text-emerald-600"
-                                      : current
-                                      ? "text-amber-600"
-                                      : "text-slate-400"
-                                  }`}
-                                >
-                                  {getStepLabel(step)}
+                            <div className="min-w-0 space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="font-medium text-slate-900">{job.full_name || "Guest passenger"}</div>
+                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${getStatusColor(currentStatus)}`}>
+                                  {getGreeterStatusLabel(currentStatus)}
                                 </span>
                               </div>
-                              {i < STATUS_STEPS.length - 1 && (
-                                <div
-                                  className={`mb-4 h-0.5 flex-1 transition-colors ${
-                                    i < stepIdx ? "bg-emerald-400" : "bg-slate-200"
-                                  }`}
-                                />
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                                <MapPin className="h-3.5 w-3.5" />
+                                <span className="break-words">{job.pickup_location || "Pickup pending"}</span>
+                                <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="break-words">{job.dropoff_location || "Drop-off pending"}</span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 text-sm">
+                                <span className="text-slate-500">{formatJobDate(job.date_time)}</span>
+                                <span className="flex items-center gap-1 text-slate-500"><Users className="h-3.5 w-3.5" /> {job.passengers ?? 1}</span>
+                                <span className="font-medium text-slate-700">{formatCurrency(job.amount)}</span>
+                              </div>
+                              {flight && (
+                                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                                  <Plane className="h-3.5 w-3.5" />
+                                  <span>{flight}</span>
+                                  {flightInfo ? (
+                                    <span className={`rounded-full px-2 py-0.5 text-xs ${flightInfo.source === "remote" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                                      {flightInfo.status}{flightInfo.terminal ? ` · T${flightInfo.terminal}` : ""}
+                                    </span>
+                                  ) : null}
+                                </div>
                               )}
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                          </div>
 
-                    {/* Primary action */}
-                    {nextAction ? (
-                      <Button
-                        onClick={() => void handleJobAction(job.id, nextAction.action)}
-                        disabled={activeJobId === job.id}
-                        className="w-full bg-slate-900 text-white hover:bg-slate-700 sm:w-auto sm:min-w-[180px]"
-                        size="lg"
-                      >
-                        {activeJobId === job.id ? (
-                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating…</>
-                        ) : (
-                          nextAction.label
-                        )}
-                      </Button>
-                    ) : (
-                      <div className="flex items-center gap-2 text-sm font-medium text-emerald-700">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Job completed
-                      </div>
-                    )}
+                          <div className="flex w-full flex-wrap gap-2 lg:w-auto">
+                            {nextAction ? (
+                              <Button
+                                onClick={() => void handleJobAction(job.id, nextAction.action)}
+                                disabled={activeJobId === job.id}
+                                className="w-full bg-slate-900 text-white hover:bg-slate-800 sm:w-auto"
+                              >
+                                {activeJobId === job.id ? (
+                                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...</>
+                                ) : (
+                                  <><Navigation className="mr-2 h-4 w-4" /> {nextAction.label}</>
+                                )}
+                              </Button>
+                            ) : (
+                              <div className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                                <CheckCircle2 className="mr-2 h-4 w-4" /> Completed
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
-                    {/* Invoice section */}
-                    {invoice ? (
-                      /* Submitted invoice status */
-                      <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                        <div>
-                          <p className="text-sm font-semibold text-emerald-800">
-                            Invoice {getInvoiceStatusLabel(invoice.office_status)} · £{Number(invoice.amount || 0).toFixed(2)}
-                          </p>
-                          {invoice.notes ? (
-                            <p className="mt-0.5 text-xs text-emerald-700">{invoice.notes}</p>
-                          ) : null}
+                        <div className="rounded-xl bg-slate-50 p-3 sm:hidden">
+                          <div className="mb-2 flex items-center justify-between text-xs text-slate-600">
+                            <span>{getStepLabel(STATUS_STEPS[Math.max(0, Math.min(stepIdx, STATUS_STEPS.length - 1))])}</span>
+                            <span>Step {Math.min(stepIdx + 1, STATUS_STEPS.length)} of {STATUS_STEPS.length}</span>
+                          </div>
+                          <div className="h-2 w-full rounded-full bg-slate-200">
+                            <div
+                              className="h-2 rounded-full bg-emerald-500 transition-all"
+                              style={{ width: `${(Math.min(stepIdx + 1, STATUS_STEPS.length) / STATUS_STEPS.length) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="hidden sm:block">
+                          <div className="flex items-center">
+                            {STATUS_STEPS.map((step, i) => {
+                              const done = i < stepIdx;
+                              const current = i === stepIdx;
+                              return (
+                                <div key={step} className="flex flex-1 items-center last:flex-none">
+                                  <div className="flex flex-col items-center">
+                                    <div className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-bold ${done ? "border-emerald-500 bg-emerald-500 text-white" : current ? "border-amber-500 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-300"}`}>
+                                      {done ? "✓" : i + 1}
+                                    </div>
+                                    <span className={`mt-1 text-[10px] uppercase tracking-[0.18em] ${done ? "text-emerald-600" : current ? "text-amber-600" : "text-slate-400"}`}>
+                                      {getStepLabel(step)}
+                                    </span>
+                                  </div>
+                                  {i < STATUS_STEPS.length - 1 && (
+                                    <div className={`mb-4 h-0.5 flex-1 ${i < stepIdx ? "bg-emerald-400" : "bg-slate-200"}`} />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
-                    ) : canSubmit ? (
-                      /* Invoice submission toggle */
-                      <div className="rounded-lg border border-slate-200 bg-slate-50">
-                        <button
-                          onClick={() =>
-                            setExpandedInvoice((prev) => ({ ...prev, [job.id]: !prev[job.id] }))
-                          }
-                          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors rounded-lg"
-                        >
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-slate-500" />
-                            Submit invoice to office
-                          </div>
-                          {isInvoiceExpanded ? (
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-slate-400" />
-                          )}
-                        </button>
 
-                        {isInvoiceExpanded && (
-                          <div className="space-y-3 border-t border-slate-200 px-4 pb-4 pt-3">
+                      {invoice ? (
+                        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                          <div className="flex items-start gap-3">
+                            <FileText className="mt-0.5 h-4 w-4 text-emerald-600" />
                             <div>
-                              <label className="mb-1 block text-xs font-medium text-slate-600">
-                                Amount (£)
-                              </label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                                value={draft.amount}
-                                onChange={(e) =>
-                                  setInvoiceDrafts((cur) => ({
-                                    ...cur,
-                                    [job.id]: { amount: e.target.value, notes: draft.notes },
-                                  }))
-                                }
-                                placeholder="0.00"
-                              />
+                              <p className="text-sm font-semibold text-emerald-800">
+                                Invoice {getInvoiceStatusLabel(invoice.office_status)} · {formatCurrency(invoice.amount)}
+                              </p>
+                              {invoice.notes ? <p className="mt-1 text-xs text-emerald-700">{invoice.notes}</p> : null}
                             </div>
-                            <div>
-                              <label className="mb-1 block text-xs font-medium text-slate-600">
-                                Notes <span className="font-normal text-slate-400">(optional)</span>
-                              </label>
-                              <textarea
-                                rows={3}
-                                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                                value={draft.notes}
-                                onChange={(e) =>
-                                  setInvoiceDrafts((cur) => ({
-                                    ...cur,
-                                    [job.id]: { amount: draft.amount, notes: e.target.value },
-                                  }))
-                                }
-                                placeholder="Any notes for the office…"
-                              />
-                            </div>
-                            <Button
-                              onClick={() => void handleSubmitInvoice(job)}
-                              disabled={submittingInvoiceId === job.id}
-                              className="w-full bg-slate-900 text-white hover:bg-slate-700"
-                            >
-                              {submittingInvoiceId === job.id ? (
-                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting…</>
-                              ) : (
-                                "Submit invoice"
-                              )}
-                            </Button>
                           </div>
-                        )}
-                      </div>
-                    ) : null}
+                        </div>
+                      ) : canSubmit ? (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50">
+                          <button
+                            onClick={() => setExpandedInvoice((prev) => ({ ...prev, [job.id]: !prev[job.id] }))}
+                            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                          >
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-slate-500" />
+                              Submit invoice to office
+                            </div>
+                            {isInvoiceExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                          </button>
+
+                          {isInvoiceExpanded && (
+                            <div className="space-y-3 border-t border-slate-200 px-4 pb-4 pt-3">
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-slate-600">Amount (GBP)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                                  value={draft.amount}
+                                  onChange={(e) =>
+                                    setInvoiceDrafts((cur) => ({
+                                      ...cur,
+                                      [job.id]: { amount: e.target.value, notes: draft.notes },
+                                    }))
+                                  }
+                                  placeholder="0.00"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-slate-600">Notes <span className="font-normal text-slate-400">(optional)</span></label>
+                                <textarea
+                                  rows={3}
+                                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                                  value={draft.notes}
+                                  onChange={(e) =>
+                                    setInvoiceDrafts((cur) => ({
+                                      ...cur,
+                                      [job.id]: { amount: draft.amount, notes: e.target.value },
+                                    }))
+                                  }
+                                  placeholder="Any notes for the office"
+                                />
+                              </div>
+                              <Button
+                                onClick={() => void handleSubmitInvoice(job)}
+                                disabled={submittingInvoiceId === job.id}
+                                className="w-full bg-slate-900 text-white hover:bg-slate-800"
+                              >
+                                {submittingInvoiceId === job.id ? (
+                                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</>
+                                ) : (
+                                  "Submit invoice"
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+
+            <Card className="rounded-3xl border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <h3 className="text-xl font-semibold text-slate-900 sm:text-2xl">Next pickup</h3>
+              <div className="relative mb-5 mt-5 grid aspect-video place-items-center overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-amber-50 via-white to-slate-100 sm:mb-6 sm:mt-6">
+                <div
+                  className="absolute inset-0 opacity-60"
+                  style={{
+                    backgroundImage:
+                      "radial-gradient(circle at 30% 35%, rgba(251,191,36,0.22), transparent 42%), radial-gradient(circle at 72% 70%, rgba(148,163,184,0.18), transparent 40%)",
+                  }}
+                />
+                <Navigation className="relative h-10 w-10 text-slate-700 sm:h-11 sm:w-11" />
+              </div>
+
+              {nextJob ? (
+                <>
+                  <div className="mb-5 rounded-2xl bg-slate-50 p-4 sm:mb-6">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Upcoming movement</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900 sm:text-xl">{nextJob.full_name || "Guest passenger"}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                      <span>{formatJobDate(nextJob.date_time)}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(nextJob.driver_status || nextJob.status || "assigned")}`}>
+                        {getGreeterStatusLabel(nextJob.driver_status || nextJob.status || "assigned")}
+                      </span>
+                    </div>
                   </div>
-                </article>
-              );
-            })}
+
+                  <div className="space-y-1 text-sm">
+                    <DetailRow k="Pickup" v={String(nextJob.pickup_location || "Location pending")} />
+                    <DetailRow k="Drop-off" v={String(nextJob.dropoff_location || "Not set")} />
+                    <DetailRow k="Passengers" v={`${nextJob.passengers ?? 1}`} />
+                    <DetailRow k="Booking ref" v={String(nextJob.booking_ref || nextJob.id.slice(0, 8))} />
+                    <DetailRow
+                      k="Flight"
+                      v={(() => {
+                        const flight = getPrimaryFlightNumber(nextJob);
+                        const info = flight ? flightStatuses[flight] : null;
+                        if (!flight) return "No flight linked";
+                        return `${flight}${info?.terminal ? ` · T${info.terminal}` : ""}${info?.status ? ` · ${info.status}` : ""}`;
+                      })()}
+                    />
+                  </div>
+
+                  <Button
+                    className="mt-6 w-full bg-slate-900 text-white hover:bg-slate-800"
+                    onClick={() => {
+                      const action = getGreeterActionConfig(nextJob.driver_status || nextJob.status || "assigned");
+                      if (action) {
+                        void handleJobAction(nextJob.id, action.action);
+                      }
+                    }}
+                    disabled={activeJobId === nextJob.id || !getGreeterActionConfig(nextJob.driver_status || nextJob.status || "assigned")}
+                  >
+                    {activeJobId === nextJob.id ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...</>
+                    ) : (
+                      <><Navigation className="mr-2 h-4 w-4" /> {getGreeterActionConfig(nextJob.driver_status || nextJob.status || "assigned")?.label ?? "No next action"}</>
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+                  No pickup queued right now.
+                </div>
+              )}
+            </Card>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </section>
   );
 }
-

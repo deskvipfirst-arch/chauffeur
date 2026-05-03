@@ -490,14 +490,60 @@ export async function getDrivers(): Promise<DbRow[]> {
 }
 
 export async function getDriverByEmail(email: string): Promise<DbRow | null> {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.DRIVERS)
     .select("*")
-    .eq("email", email)
+    .eq("email", normalizedEmail)
+    .limit(1);
+
+  if (error) throw error;
+  const first = Array.isArray(data) ? data[0] : null;
+  return first ? normalizeDbRow(first) : null;
+}
+export async function updateDriverStatusByEmail(email: string, status: "active" | "inactive") {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("Email is required");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from(COLLECTIONS.DRIVERS)
+    .update({ status })
+    .eq("email", normalizedEmail)
+    .select("*");
+
+  if (error) throw error;
+  const first = Array.isArray(data) ? data[0] : null;
+  return first ? normalizeDbRow(first) : null;
+}
+
+export async function createDriverByEmail(email: string, status: "active" | "inactive") {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("Email is required");
+  }
+
+  const localPart = normalizedEmail.split("@")[0] || "greeter";
+  const [firstNameRaw, ...rest] = localPart.split(/[._-]+/).filter(Boolean);
+  const firstName = firstNameRaw ? firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1) : "Greeter";
+  const lastName = rest.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+
+  const { data, error } = await supabaseAdmin
+    .from(COLLECTIONS.DRIVERS)
+    .insert({
+      email: normalizedEmail,
+      status,
+      firstName,
+      lastName,
+    })
+    .select("*")
     .maybeSingle();
 
   if (error) throw error;
-  return normalizeDbRow(data);
+  return data ? normalizeDbRow(data) : null;
 }
 
 export async function getDriverById(id: string): Promise<DbRow | null> {
@@ -517,12 +563,12 @@ export async function getDriverById(id: string): Promise<DbRow | null> {
     throw error;
   }
 
-  return normalizeDbRow(data);
+  return data ? normalizeDbRow(data) : null;
 }
 
 export async function getBookingsForDriverEmail(email: string): Promise<DbRow[]> {
   const driver = await getDriverByEmail(email);
-  if (!driver) return [];
+  if (!driver || !driver.id) return [];
 
   const { data, error } = await supabaseAdmin
     .from(COLLECTIONS.BOOKINGS)
