@@ -608,9 +608,19 @@ export async function createUserProfile(userId: string, userData: UserData) {
     ...userData,
   });
 
-  const { error } = await supabaseAdmin.from(COLLECTIONS.USERS).upsert(payload);
+  let nextPayload = { ...payload };
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { error } = await supabaseAdmin.from(COLLECTIONS.USERS).upsert(nextPayload);
+    if (!error) return;
 
-  if (error) throw error;
+    const missingColumn = extractMissingColumn(error);
+    if (missingColumn && missingColumn in nextPayload) {
+      delete nextPayload[missingColumn];
+      continue;
+    }
+
+    throw error;
+  }
 }
 
 export async function getUserProfile(userId: string): Promise<(DbRow & { id: string }) | null> {

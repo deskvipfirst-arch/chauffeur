@@ -64,7 +64,13 @@ export async function PATCH(request: NextRequest) {
     const nextStatus = body?.available === true ? "active" : "inactive";
     let updated = await updateDriverStatusByEmail(effectiveEmail, nextStatus);
     if (!updated) {
-      updated = await createDriverByEmail(effectiveEmail, nextStatus);
+      try {
+        updated = await createDriverByEmail(effectiveEmail, nextStatus);
+      } catch {
+        // If creation races with another request (or an existing row appears),
+        // retry the update path instead of failing the toggle.
+        updated = await updateDriverStatusByEmail(effectiveEmail, nextStatus);
+      }
     }
     const status = String(updated?.status || nextStatus).toLowerCase() === "active" ? "active" : "inactive";
 

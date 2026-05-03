@@ -9,6 +9,7 @@ export default function LayoutWithConditionalHeaderFooter({ children }: { childr
   const pathname = usePathname();
   const shouldHideHeaderFooter =
     pathname.startsWith("/administrator/dashboard") ||
+    pathname.startsWith("/greeter/dashboard") ||
     pathname.startsWith("/user/signin") ||
     pathname.startsWith("/user/signup");
 

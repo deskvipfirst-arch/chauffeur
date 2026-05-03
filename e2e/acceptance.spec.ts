@@ -136,14 +136,55 @@ test.describe("live credential checks", () => {
   test("greeter can access the greeter dashboard when E2E credentials are configured", async ({ page }) => {
     test.skip(!greeterEmail || !greeterPassword, "Set E2E_GREETER_EMAIL and E2E_GREETER_PASSWORD to run live greeter acceptance.");
 
-    await page.goto("/user/signin");
+    await page.goto("/greeter/signin");
     await page.getByPlaceholder("Email").first().fill(greeterEmail!);
     await page.getByPlaceholder("Password").fill(greeterPassword!);
     await page.getByRole("button", { name: /sign in/i }).click();
 
-    await page.goto("/greeter/dashboard");
     await expect(page).toHaveURL(/greeter\/dashboard/, { timeout: 20_000 });
-    await expect(page.getByText(/greeter dashboard|assigned jobs|no assigned jobs/i).first()).toBeVisible();
+    await expect(page.getByText(/greeter operations|hello,/i).first()).toBeVisible();
+  });
+
+  test("greeter can change availability when E2E credentials are configured", async ({ page }) => {
+    test.skip(!greeterEmail || !greeterPassword, "Set E2E_GREETER_EMAIL and E2E_GREETER_PASSWORD to run live greeter availability test.");
+
+    await page.goto("/greeter/signin");
+    await page.getByPlaceholder("Email").first().fill(greeterEmail!);
+    await page.getByPlaceholder("Password").fill(greeterPassword!);
+    await page.getByRole("button", { name: /sign in/i }).click();
+
+    await expect(page).toHaveURL(/greeter\/dashboard/, { timeout: 20_000 });
+
+    await page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/greeter/availability") &&
+        response.request().method() === "GET",
+      { timeout: 20_000 }
+    );
+
+    const availabilityLabel = page.getByText(/^available$|^unavailable$/i).first();
+    await expect(availabilityLabel).toBeVisible({ timeout: 20_000 });
+    const wasAvailable = (await availabilityLabel.textContent())?.trim().toLowerCase() === "available";
+
+    const availabilitySwitch = page.getByRole("switch").first();
+    await expect(availabilitySwitch).toBeVisible({ timeout: 20_000 });
+
+    const patchResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/greeter/availability") &&
+        response.request().method() === "PATCH",
+      { timeout: 20_000 }
+    );
+
+    await availabilitySwitch.click();
+    const patchResponse = await patchResponsePromise;
+    if (!patchResponse.ok()) {
+      const body = await patchResponse.text().catch(() => "");
+      throw new Error(`Availability PATCH failed with ${patchResponse.status()}: ${body}`);
+    }
+
+    const expectedLabel = wasAvailable ? /unavailable/i : /available/i;
+    await expect(page.getByText(expectedLabel).first()).toBeVisible({ timeout: 20_000 });
   });
 
   test("staff invite flow covers callback session and password setup", async ({ page }) => {
